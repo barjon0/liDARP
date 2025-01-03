@@ -1,0 +1,14 @@
+{
+  "pathRequestFile": "input/requests/test_requests/single.csv",
+  "pathNetworkFile": "input/bus_networks/test_examples/single.json",
+  "context": "static",
+  "solver": "eventMILP",
+  "averageKmH": 60,
+  "KmPerUnit": 6,
+  "costPerKM": 0.15,
+  "co2PerKM": 0.208,
+  "capacityPerBus": 6,
+  "numberOfExtraStops": 1,
+  "maxDelayEquation": "log(x) / log(1.2)",
+  "transferMinutes": 2
+}
