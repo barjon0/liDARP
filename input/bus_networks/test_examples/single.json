@@ -1,5 +1,4 @@
 {
-  "depot": [3,1],
   "stops": [
     {"id": 0, "coordinates": [0,0]},
     {"id": 1, "coordinates": [2,0]},
@@ -9,7 +8,7 @@
   "lines": [
     {"id": 0, "stops": [0,1,2,3]}
   ],
-  "buses": [
-    {"id": 0, "line": 0}
+  "busses": [
+    {"id": 0, "line": 0, "depot": [3,1]}
   ]
 }

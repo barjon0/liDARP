@@ -1,6 +1,6 @@
 from typing import List, Set
 
-from utils.demand import SplitRequest
+from utils.demand.SplitRequest import SplitRequest
 
 
 class Event:

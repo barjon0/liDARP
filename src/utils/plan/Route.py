@@ -1,7 +1,8 @@
 from typing import List
 
-import RouteStop
+
 from utils.network.Bus import Bus
+from utils.plan.RouteStop import RouteStop
 
 
 class Route:

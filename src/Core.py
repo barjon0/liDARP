@@ -1,9 +1,9 @@
-from typing import List
+from typing import List, Set, Dict
 
 from main.plan.Planner import Planner
-from main.scope.Context import Context
+from main.scope.Context import Context, Static
 from utils.demand import Request
-from utils.network import Bus
+from utils.network import Bus, Stop, Line
 from utils.plan import Route
 
 
@@ -19,6 +19,5 @@ class Core:
         pass
 
 
+
 # main reads in the config file and then establishes core class -> control flow from there
-def main():
-    pass

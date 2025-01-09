@@ -1,0 +1,126 @@
+import csv
+import json
+import sys
+from datetime import datetime, time
+from typing import Set, List, Dict
+
+from main.plan.EventBasedMILP import EventBasedMILP
+from main.plan.Planner import Planner
+from main.scope.Context import Context, Static
+from utils.demand.Request import Request
+from utils.helper import Helper
+from utils.helper.LineGraph import LineGraph
+from utils.network.Bus import Bus
+from utils.network.Line import Line
+from utils.network.Stop import Stop
+from utils.plan.Route import Route
+
+
+def find_planner(solver_str: str, network: List[Bus]):
+    if solver_str == 'eventMILP':
+        return EventBasedMILP(network)
+    else:
+        raise ValueError("the given solver string is not registered in the system")
+
+
+def find_context(context_str, requests: Set[Request]):
+    if context_str == 'static':
+        return Static(requests)
+    else:
+        raise ValueError("the given context string is not registered in the system")
+
+
+def read_requests(request_path, network_graph: LineGraph):
+    request_set: Set[Request] = set()
+
+    stops: Dict[int, Stop] = {}
+    for stop in network_graph.get_nodes():
+        stops[stop.id] = stop
+
+    with open(request_path, 'r') as request_file:
+        csv_requests = csv.reader(request_file)
+
+        next(csv_requests)
+        for row in csv_requests:
+            earl_time: time = datetime.strptime(row[2], "%H:%M:%S").time()
+            pick_up: Stop = stops[int(row[3])]
+            drop_off: Stop = stops[int(row[4])]
+            delay_time: time = Helper.calc_latest(pick_up, drop_off, network_graph)
+            request_set.add(Request(int(row[0]), pick_up, drop_off,
+                                    earl_time, Helper.add_times(earl_time, delay_time), datetime.strptime(row[1], "%H:%M:%S").time()))
+
+    return request_set
+
+
+def read_bus_network(network_path: str):
+    with open(network_path, 'r') as network_file:
+        network_dict: dict = json.load(network_file)
+
+    stops: Dict[int, Stop] = {}
+    stop_list = network_dict.get('stops')
+    for single_stop in stop_list:
+        stops[single_stop["id"]] = Stop(single_stop["id"], tuple(single_stop["coordinates"]))
+
+    lines: Dict[int, Line] = {}
+    line_list = network_dict.get('lines')
+    for line in line_list:
+        stops_of_line: List[Stop] = []
+        for stop_id in line["stops"]:
+            stops_of_line.append(stops[stop_id])
+        lines[line["id"]] = Line(line["id"], stops_of_line)
+
+    busses: List[Bus] = []
+    bus_list = network_dict.get('busses')
+    if Helper.CAPACITY_PER_BUS is None:
+        for bus in bus_list:
+            line_of_bus = lines[bus["line"]]
+            busses.append(Bus(bus["id"], bus["capacity"], line_of_bus, bus["depot"]))
+    else:
+        for bus in bus_list:
+            line_of_bus = lines[bus["line"]]
+            busses.append(Bus(bus["id"], Helper.CAPACITY_PER_BUS, line_of_bus, bus["depot"]))
+
+    return busses
+
+
+def main(path_2_config: str):
+    with open(path_2_config, 'r') as config_file:
+        config: dict = json.load(config_file)
+
+    Helper.AVERAGE_KMH = config.get('averageKmH')
+    Helper.KM_PER_UNIT = config.get('KmPerUnit')
+    Helper.COST_PER_KM = config.get('costPerKM')
+    Helper.CO2_PER_KM = config.get('co2PerKM')
+    Helper.CAPACITY_PER_BUS = config.get('capacityPerBus')
+    Helper.NUMBER_OF_EXTRA_STOPS = config.get('numberOfExtraStops')
+    Helper.MAX_DELAY_EQUATION = config.get('maxDelayEquation')
+    Helper.TRANSFER_MINUTES = config.get('transferMinutes')
+    Helper.TIME_WINDOW = config.get('timeWindowMinutes')
+
+    request_path: str = config.get('pathRequestFile')
+    network_path: str = config.get('pathNetworkFile')
+    context_str: str = config.get('context')
+    solver_str: str = config.get('solver')
+
+    network: List[Bus] = read_bus_network(network_path)
+    network_graph = LineGraph(network)
+    requests: Set[Request] = read_requests(request_path, network_graph)
+
+    plann: Planner = find_planner(solver_str, network)
+    context: Context = find_context(context_str, requests)
+
+    print(network)
+    print(requests)
+
+
+def create_output(requests: Set[Request], plan: Set[Route]):
+    pass
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        # The first argument is the file path
+        config_path = sys.argv[1]
+        main(config_path)
+    else:
+        print("Please provide the file path to the config file as an argument.")

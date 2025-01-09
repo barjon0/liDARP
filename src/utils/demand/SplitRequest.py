@@ -1,4 +1,4 @@
-from AbstractRequest import AbstractRequest
+from utils.demand.AbstractRequest import AbstractRequest
 from utils.network.Stop import Stop
 
 
