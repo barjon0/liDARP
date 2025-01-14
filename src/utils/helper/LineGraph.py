@@ -1,9 +1,9 @@
-from typing import List, Set, Dict
+from typing import List, Set, Dict, Tuple
 
 from utils.helper import Helper
+from utils.network import Stop
 from utils.network.Bus import Bus
 from utils.network.Line import Line
-from utils.network.Stop import Stop
 
 
 # edges between two stops: contain lines travelling there and duration of travel
@@ -42,11 +42,14 @@ def get_edges(all_lines: Set[Line]):
 
 
 class LineEdge:
-    def __init__(self, v1: Stop, v2: Stop, lines: Set[Line]):
+    def __init__(self, v1: Stop, v2: Stop, lines: Set[Line], duration: float = -1):
         self.v1 = v1
         self.v2 = v2
         self.lines = lines
-        self.duration = Helper.calc_time(Helper.calc_distance(v1, v2))
+        if duration == -1:
+            self.duration = Helper.calc_time(Helper.calc_distance(v1, v2))
+        else:
+            self.duration = duration
 
     def contains_stop(self, v: Stop):
         if self.v1 == v or self.v2 == v:
@@ -62,23 +65,30 @@ class LineEdge:
         else:
             ValueError("edge accessed with node not part of it")
 
-    def __eq__(self, other):
-        other_edge: LineEdge = other
-        if self.v1 == other_edge.v1 or self.v1 == other_edge.v2:
-            if self.v2 == other_edge.v2 or self.v2 == other_edge.v1:
-                return True
-        return False
 
-    def __hash__(self):
-        # hash only depends on nodes, no matter the order
-        return hash(frozenset({self.v1, self.v2}))
+def make_agg_edges(line_set: Set[Line]):
+
+    # find all transfer points of certain line
+    result: List[LineEdge] = []
+    for line_a in line_set:
+        transfer_stops_a: Set[Stop] = set()
+        for line_b in (line_set - {line_a}):
+            transfer_stops_a |= (set(line_a.stops) & set(line_b.stops))
+
+        # make lineEdge for all pairs of a line
+        for transfer_a in transfer_stops_a:
+            for transfer_b in (transfer_stops_a - {transfer_a}):
+                duration: float = Helper.calc_time_multi(transfer_a, transfer_b, line_a)
+                result.append(LineEdge(transfer_a, transfer_b, {line_a}, duration))
+
+    return result
 
 
 class LineGraph:
     def __init__(self, network: List[Bus]):
         nodes: Set[Stop] = get_nodes(network)
-        all_lines: Set[Line] = {bus.line for bus in network}
-        self.edges: List[LineEdge] = get_edges(all_lines)
+        self.all_lines: Set[Line] = {bus.line for bus in network}
+        self.edges: List[LineEdge] = get_edges(self.all_lines)
 
         self._graph_dict: Dict[Stop, List[LineEdge]] = {}
         for node in nodes:
@@ -87,6 +97,9 @@ class LineGraph:
         for edge in self.edges:
             self._graph_dict[edge.v1].append(edge)
             self._graph_dict[edge.v2].append(edge)
+
+        # find and store all sub-routes between transfer points
+        self.aggregated_edges: List[LineEdge] = make_agg_edges(self.all_lines)
 
     def get_nodes(self):
         return self._graph_dict.keys()

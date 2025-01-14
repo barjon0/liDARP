@@ -8,6 +8,7 @@ from main.plan.EventBasedMILP import EventBasedMILP
 from main.plan.Planner import Planner
 from main.scope.Context import Context, Static
 from utils.demand.Request import Request
+from utils.demand.SplitRequest import SplitRequest
 from utils.helper import Helper
 from utils.helper.LineGraph import LineGraph
 from utils.network.Bus import Bus
@@ -45,9 +46,9 @@ def read_requests(request_path, network_graph: LineGraph):
             earl_time: time = datetime.strptime(row[2], "%H:%M:%S").time()
             pick_up: Stop = stops[int(row[3])]
             drop_off: Stop = stops[int(row[4])]
-            delay_time: time = Helper.calc_latest(pick_up, drop_off, network_graph)
+            delay_time, numb_transfers = Helper.complete_request(pick_up, drop_off, network_graph)
             request_set.add(Request(int(row[0]), pick_up, drop_off,
-                                    earl_time, Helper.add_times(earl_time, delay_time), datetime.strptime(row[1], "%H:%M:%S").time()))
+                                    earl_time, Helper.add_times(earl_time, delay_time), datetime.strptime(row[1], "%H:%M:%S").time(), numb_transfers))
 
     return request_set
 
@@ -92,7 +93,7 @@ def main(path_2_config: str):
     Helper.COST_PER_KM = config.get('costPerKM')
     Helper.CO2_PER_KM = config.get('co2PerKM')
     Helper.CAPACITY_PER_BUS = config.get('capacityPerBus')
-    Helper.NUMBER_OF_EXTRA_STOPS = config.get('numberOfExtraStops')
+    Helper.NUMBER_OF_EXTRA_TRANSFERS = config.get('numberOfExtraTransfers')
     Helper.MAX_DELAY_EQUATION = config.get('maxDelayEquation')
     Helper.TRANSFER_MINUTES = config.get('transferMinutes')
     Helper.TIME_WINDOW = config.get('timeWindowMinutes')
@@ -112,6 +113,12 @@ def main(path_2_config: str):
     print(network)
     print(requests)
 
+    for request in requests:
+        split_lists: List[List[SplitRequest]] = Helper.find_split_requests(request, network_graph)
+        for variation_numb in range(len(split_lists)):
+            request.split_requests[variation_numb] = split_lists[variation_numb]
+
+    print("done")
 
 def create_output(requests: Set[Request], plan: Set[Route]):
     pass
