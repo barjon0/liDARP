@@ -2,11 +2,12 @@ import csv
 import json
 import sys
 from datetime import datetime, time
-from typing import Set, List, Dict
+from typing import Set, List, Dict, Tuple
 
 from main.plan.EventBasedMILP import EventBasedMILP
 from main.plan.Planner import Planner
 from main.scope.Context import Context, Static
+from main.scope.Executor import Executor
 from utils.demand.Request import Request
 from utils.demand.SplitRequest import SplitRequest
 from utils.helper import Helper
@@ -17,16 +18,16 @@ from utils.network.Stop import Stop
 from utils.plan.Route import Route
 
 
-def find_planner(solver_str: str, network: List[Bus]):
+def find_planner(solver_str: str, network: List[Bus], network_graph: LineGraph):
     if solver_str == 'eventMILP':
-        return EventBasedMILP(network)
+        return EventBasedMILP(network, network_graph)
     else:
         raise ValueError("the given solver string is not registered in the system")
 
 
-def find_context(context_str, requests: Set[Request]):
+def find_context(context_str, requests: Set[Request], executor: Executor, planner: Planner):
     if context_str == 'static':
-        return Static(requests)
+        return Static(requests, executor, planner)
     else:
         raise ValueError("the given context string is not registered in the system")
 
@@ -48,7 +49,8 @@ def read_requests(request_path, network_graph: LineGraph):
             drop_off: Stop = stops[int(row[4])]
             delay_time, numb_transfers = Helper.complete_request(pick_up, drop_off, network_graph)
             request_set.add(Request(int(row[0]), pick_up, drop_off,
-                                    earl_time, Helper.add_times(earl_time, delay_time), datetime.strptime(row[1], "%H:%M:%S").time(), numb_transfers))
+                                    earl_time, Helper.add_times(earl_time, delay_time),
+                                    datetime.strptime(row[1], "%H:%M:%S").time(), numb_transfers))
 
     return request_set
 
@@ -57,9 +59,12 @@ def read_bus_network(network_path: str):
     with open(network_path, 'r') as network_file:
         network_dict: dict = json.load(network_file)
 
+    max_id: int = 0
     stops: Dict[int, Stop] = {}
     stop_list = network_dict.get('stops')
     for single_stop in stop_list:
+        if single_stop["id"] > max_id:
+            max_id = single_stop["id"]
         stops[single_stop["id"]] = Stop(single_stop["id"], tuple(single_stop["coordinates"]))
 
     lines: Dict[int, Line] = {}
@@ -72,14 +77,24 @@ def read_bus_network(network_path: str):
 
     busses: List[Bus] = []
     bus_list = network_dict.get('busses')
-    if Helper.CAPACITY_PER_BUS is None:
-        for bus in bus_list:
-            line_of_bus = lines[bus["line"]]
-            busses.append(Bus(bus["id"], bus["capacity"], line_of_bus, bus["depot"]))
-    else:
-        for bus in bus_list:
-            line_of_bus = lines[bus["line"]]
-            busses.append(Bus(bus["id"], Helper.CAPACITY_PER_BUS, line_of_bus, bus["depot"]))
+    depot_dict: Dict[Tuple[int, int], Stop] = {}
+
+    for bus in bus_list:
+        line_of_bus = lines[bus["line"]]
+
+        depot_stop: Stop
+        depot_coord: Tuple[int, int] = tuple(bus["depot"])
+        if depot_coord in depot_dict:
+            depot_stop = depot_dict[depot_coord]
+        else:
+            max_id = max_id + 1
+            depot_stop = Stop(max_id, depot_coord)
+            depot_dict[depot_coord] = depot_stop
+
+        if Helper.CAPACITY_PER_BUS is None:
+            busses.append(Bus(bus["id"], bus["capacity"], line_of_bus, depot_stop))
+        else:
+            busses.append(Bus(bus["id"], Helper.CAPACITY_PER_BUS, line_of_bus, depot_stop))
 
     return busses
 
@@ -107,18 +122,16 @@ def main(path_2_config: str):
     network_graph = LineGraph(network)
     requests: Set[Request] = read_requests(request_path, network_graph)
 
-    plann: Planner = find_planner(solver_str, network)
-    context: Context = find_context(context_str, requests)
-
-    print(network)
-    print(requests)
+    plann: Planner = find_planner(solver_str, network, network_graph)
+    context: Context = find_context(context_str, requests, Executor(network), plann)
 
     for request in requests:
         split_lists: List[List[SplitRequest]] = Helper.find_split_requests(request, network_graph)
         for variation_numb in range(len(split_lists)):
             request.split_requests[variation_numb] = split_lists[variation_numb]
 
-    print("done")
+    context.start_context()
+
 
 def create_output(requests: Set[Request], plan: Set[Route]):
     pass

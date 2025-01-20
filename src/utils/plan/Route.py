@@ -6,6 +6,6 @@ from utils.plan.RouteStop import RouteStop
 
 
 class Route:
-    def __init__(self, bus: Bus, stops: List[RouteStop]):
+    def __init__(self, bus: Bus):
         self.bus = bus
-        self.stops = stops
+        self.stop_list: List[RouteStop] = []

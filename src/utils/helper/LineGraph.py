@@ -1,6 +1,5 @@
-from typing import List, Set, Dict, Tuple
+from typing import List, Set, Dict
 
-from utils.helper import Helper
 from utils.network import Stop
 from utils.network.Bus import Bus
 from utils.network.Line import Line
@@ -43,6 +42,7 @@ def get_edges(all_lines: Set[Line]):
 
 class LineEdge:
     def __init__(self, v1: Stop, v2: Stop, lines: Set[Line], duration: float = -1):
+        from utils.helper import Helper
         self.v1 = v1
         self.v2 = v2
         self.lines = lines
@@ -67,7 +67,7 @@ class LineEdge:
 
 
 def make_agg_edges(line_set: Set[Line]):
-
+    from utils.helper import Helper
     # find all transfer points of certain line
     result: List[LineEdge] = []
     for line_a in line_set:

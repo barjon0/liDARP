@@ -39,7 +39,8 @@ def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph:
     for stop in network_graph.get_nodes():
         pred_dict[stop] = (set(), 0)
 
-    pick_lines: frozenset = frozenset([x for s in [line_set.lines for line_set in network_graph.get_edges_of_node(pick_up_location)] for x in s])
+    pick_lines: frozenset = frozenset(
+        [x for s in [line_set.lines for line_set in network_graph.get_edges_of_node(pick_up_location)] for x in s])
     pred_dict[pick_up_location] = (pick_lines, 1)
 
     queue: PriorityQueue = PriorityQueue(network_graph.get_nodes())
@@ -126,8 +127,9 @@ def sub_times(t1: time, t2: time):
 
 
 # check if hop-count exceeded -> add current stop to all open lists -> if not source: recursive call to neighbours
-def rec_dfs(last_line: LineEdge, curr_minutes: float, curr_transfers: int, prev_visited: Set[Stop], curr_open: List[List[SplitRequest]], look_up_dict: Dict[LineEdge, SplitRequest], max_time: float, max_hop_count: int, target: Stop):
-
+def rec_dfs(last_line: LineEdge, curr_minutes: float, curr_transfers: int, prev_visited: Set[Stop],
+            curr_open: List[List[SplitRequest]], look_up_dict: Dict[LineEdge, SplitRequest], max_time: float,
+            max_hop_count: int, target: Stop):
     if curr_transfers > max_hop_count or curr_minutes > max_time:
         return []
     else:
@@ -137,19 +139,20 @@ def rec_dfs(last_line: LineEdge, curr_minutes: float, curr_transfers: int, prev_
             return curr_open
         else:
             # find all successors of v2, that are not yet explored and operate on new line
-            successors: List[LineEdge] = [x for x in look_up_dict.keys() if (x.v1 == last_line.v2) and (x.v2 not in prev_visited) and (next(iter(x.lines)) != next(iter(last_line.lines)))]
+            successors: List[LineEdge] = [x for x in look_up_dict.keys() if
+                                          (x.v1 == last_line.v2) and (x.v2 not in prev_visited) and (
+                                                      next(iter(x.lines)) != next(iter(last_line.lines)))]
             prev_visited.add(last_line.v1)
 
             combined_poss: List[List[SplitRequest]] = []
             for suc in successors:
-                combined_poss += rec_dfs(suc, curr_minutes + TRANSFER_MINUTES + suc.duration, curr_transfers + 1, prev_visited.copy(), [x.copy() for x in curr_open], look_up_dict, max_time, max_hop_count, target)
+                combined_poss += rec_dfs(suc, curr_minutes + TRANSFER_MINUTES + suc.duration, curr_transfers + 1,
+                                         prev_visited.copy(), [x.copy() for x in curr_open], look_up_dict, max_time,
+                                         max_hop_count, target)
 
             return combined_poss
 
-# Algo to retrieve all possible Subroutes in network from transfer point to transfer point(call only once store in LineGraph?)
-# + Per request: make SplitRequest for all pick-up/drop-off to transfer points subroutes(for every request) and for all subroutes in network -> store in dict
 
-# only call dfs once with split-req dict, starting at all subroutes of start -> check time and transfer constraints
 def calc_time_multi(v1: Stop, v2: Stop, line: Line):
     index_v1: int = line.stops.index(v1)
     index_v2: int = line.stops.index(v2)
@@ -162,12 +165,15 @@ def calc_time_multi(v1: Stop, v2: Stop, line: Line):
 
     duration: float = 0
     for i in range(index_v1, index_v2):
-        duration += calc_time(calc_distance(line.stops[i], line.stops[i+1]))
+        duration += calc_time(calc_distance(line.stops[i], line.stops[i + 1]))
 
     return duration
 
 
+# Algo to retrieve all possible Subroutes in network from transfer point to transfer point(call only once store in LineGraph?)
+# + Per request: make SplitRequest for all pick-up/drop-off to transfer points subroutes(for every request) and for all subroutes in network -> store in dict
 
+# only call dfs once with split-req dict, starting at all subroutes of start -> check time and transfer constraints
 def find_split_requests(request: Request, network_graph: LineGraph) -> List[List[SplitRequest]]:
     # for pick-up and transfer point find all combis with transfer points
 
@@ -202,13 +208,15 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
     for trans_point in pick_up_trans:
         pick_up_line: Line = next(iter(pick_up_lines))
         duration: float = calc_time_multi(request.pick_up_location, trans_point, pick_up_line)
-        agg_edges_dict[LineEdge(request.pick_up_location, trans_point, {pick_up_line}, duration)] = SplitRequest(request.id, request.pick_up_location, trans_point, pick_up_line)
+        agg_edges_dict[LineEdge(request.pick_up_location, trans_point, {pick_up_line}, duration)] = SplitRequest(
+            request.id, request.pick_up_location, trans_point, pick_up_line)
 
     # fill dict for transfer point to drop-off
     for trans_point in drop_off_trans:
         drop_off_line: Line = next(iter(drop_off_lines))
         duration: float = calc_time_multi(trans_point, request.drop_off_location, drop_off_line)
-        agg_edges_dict[LineEdge(trans_point, request.drop_off_location, {drop_off_line}, duration)] = SplitRequest(request.id, trans_point, request.drop_off_location, drop_off_line)
+        agg_edges_dict[LineEdge(trans_point, request.drop_off_location, {drop_off_line}, duration)] = SplitRequest(
+            request.id, trans_point, request.drop_off_location, drop_off_line)
 
     # if at least one is not a transfer point
     if (len(pick_up_lines) == 1) and (len(drop_off_lines) == 1):
@@ -217,17 +225,20 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
         if len(combi_lines) > 0:
             line: Line = next(iter(combi_lines))
             duration: float = calc_time_multi(request.pick_up_location, request.drop_off_location, line)
-            agg_edges_dict[LineEdge(request.pick_up_location, request.drop_off_location, {line}, duration)] = SplitRequest(request.id, request.pick_up_location, request.drop_off_location, line)
+            agg_edges_dict[
+                LineEdge(request.pick_up_location, request.drop_off_location, {line}, duration)] = SplitRequest(
+                request.id, request.pick_up_location, request.drop_off_location, line)
 
     # now do dfs with dictionary of split-requests, account for max. number of transfers and time constraints
     max_time: float = convert_2_minutes(request.latest_arr_time) - convert_2_minutes(request.earl_start_time) - 15
-
 
     # depth-first search to retrieve all combinations, starting at start-position
     result: List[List[SplitRequest]] = []
     start_tupels: List[LineEdge] = [x for x in agg_edges_dict.keys() if x.v1 == request.pick_up_location]
 
     for start_sub_line in start_tupels:
-        result += rec_dfs(start_sub_line, TRANSFER_MINUTES + start_sub_line.duration, 1, {request.pick_up_location}, [[]], agg_edges_dict, max_time, request.numb_transfer + NUMBER_OF_EXTRA_TRANSFERS, request.drop_off_location)
+        result += rec_dfs(start_sub_line, TRANSFER_MINUTES + start_sub_line.duration, 1, {request.pick_up_location},
+                          [[]], agg_edges_dict, max_time, request.numb_transfer + NUMBER_OF_EXTRA_TRANSFERS,
+                          request.drop_off_location)
 
     return result
