@@ -100,6 +100,7 @@ def read_bus_network(network_path: str):
 
 
 def main(path_2_config: str):
+
     with open(path_2_config, 'r') as config_file:
         config: dict = json.load(config_file)
 
@@ -134,6 +135,14 @@ def main(path_2_config: str):
 
 
 def create_output(requests: Set[Request], plan: Set[Route]):
+    # for each bus create csv of stops(number, position, arriv_time, depart_time, pick_up_users, drop-off_users)
+    # for each user create csv of (id, list of buses, waiting_time, ride_time)
+    # system efficency = km booked(only direct km) / km travelled
+    # deviation factor = accum km of each user / km booked
+    # vehicle utilization = accum km of each user / km travelled (not empty)
+    # empty km share = km empty / km travelled
+    # (PoolingIndex = ??)
+    # go through plan of each bus, add km to big numbers, fill requests finally, fill dict for bus csv
     pass
 
 

@@ -80,7 +80,7 @@ class Executor:
                     counter += 1
                     time_count = curr_routes[route_count].stop_list[counter].arriv_time
 
-                # could lead to inconsistencies in dynamic case: not finished stop_events are counted as fully processed!!
+                # could lead to inconsistencies in dynamic case: not finished stop_events are counted as fully processed, but are cut short(pick-ups not done)
                 if counter < len(curr_routes[route_count].stop_list):
                     self.bus_delay[curr_routes[route_count].bus] = Helper.sub_times(time_count, time_next)
 
