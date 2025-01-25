@@ -10,3 +10,6 @@ class Bus:
         self.capacity = capacity
         self.line = line
         self.depot = depot
+
+    def __str__(self):
+        return str(self.id)

@@ -31,6 +31,14 @@ def calc_time(distance: float) -> float:
     return (distance * 60) / AVERAGE_KMH
 
 
+def conv_time_to_dist(duration: float):
+    return (duration * AVERAGE_KMH) / 60
+
+
+def time_to_string(time_object: time):
+    return f"{time_object.hour}:{time_object.minute}:{time_object.second}"
+
+
 # need to calculate number of transfers as well
 def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph: LineGraph):
     # dijkstra alg.
@@ -71,11 +79,12 @@ def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph:
 
 
 def complete_request(pick_up: Stop, drop_off: Stop, network_graph: LineGraph):
-    # calculate fastest time -> account for transfers -> plug into max_delay_equation
+    # calculate fastest time -> account for transfers -> plug into max_delay_equation, return corresp. km
     fastest_time, numb_transfers = calc_fastest(pick_up, drop_off, network_graph)
     long_delay = eval(MAX_DELAY_EQUATION, {"math": math, "x": fastest_time})
+    km_planned = conv_time_to_dist(fastest_time - (numb_transfers * TRANSFER_MINUTES))
 
-    return convert_2_time(long_delay + fastest_time + TIME_WINDOW), numb_transfers
+    return convert_2_time(long_delay + fastest_time + TIME_WINDOW), numb_transfers, km_planned
 
 
 # possible overflow here with time... have to consider this
@@ -141,7 +150,7 @@ def rec_dfs(last_line: LineEdge, curr_minutes: float, curr_transfers: int, prev_
             # find all successors of v2, that are not yet explored and operate on new line
             successors: List[LineEdge] = [x for x in look_up_dict.keys() if
                                           (x.v1 == last_line.v2) and (x.v2 not in prev_visited) and (
-                                                      next(iter(x.lines)) != next(iter(last_line.lines)))]
+                                                  next(iter(x.lines)) != next(iter(last_line.lines)))]
             prev_visited.add(last_line.v1)
 
             combined_poss: List[List[SplitRequest]] = []

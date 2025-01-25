@@ -1,6 +1,7 @@
 {
   "pathRequestFile": "../input/requests/test_requests/circle.csv",
   "pathNetworkFile": "../input/bus_networks/test_examples/circle.json",
+  "outputPath": "../output",
   "context": "static",
   "solver": "eventMILP",
   "averageKmH": 60,
