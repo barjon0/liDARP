@@ -1,7 +1,7 @@
 from datetime import time
 from typing import Set, Dict, List
 
-from utils.demand import Request
+from utils.demand.Request import Request
 from utils.helper import Helper
 from utils.network.Bus import Bus
 from utils.network.Stop import Stop
@@ -11,12 +11,12 @@ from utils.plan.RouteStop import RouteStop
 
 
 class Executor:
-    def __init__(self, busses: List[Bus]):
-        self.user_locations: Dict[Request, Stop] = {}  # for waiting users
+    def __init__(self, busses: List[Bus], requests: Set[Request]):
+        self.user_locations: Dict[Request, Stop] = {x: x.pick_up_location for x in requests}  # for waiting users
         self.passengers: Dict[Bus, Set[Request]] = {x: set() for x in busses}
         self.bus_locations: Dict[Bus, Stop] = {x: x.depot for x in
                                                busses}  # locations of bus (or next location bus is arriving at)
-        self.bus_delay: Dict[Bus, time] = {x: time(0, 0) for x in busses}  # time of bus to arriving at next stop
+        self.bus_delay: Dict[Bus, float] = {x: 0 for x in busses}  # time of bus to arriving at next stop
         self.routes = [Route(x) for x in busses]
 
         self.routes.sort(key=lambda x: x.bus.id)
@@ -77,9 +77,10 @@ class Executor:
                         u_picked.act_start_time = wait_event.depart_time
 
     # could observe everything here make sure there are no inconsistencies
-    def execute_plan(self, curr_routes: List[Route], time_next: time):
+    def execute_plan(self, curr_routes: List[Route], new_requests: Set[Request], time_next: time):
         # if time_next = none : -> just copy entire plan to result
         # else: look through curr. route until just before time_next -> copy to result -> update dictionaries
+        self.user_locations |= {x: x.pick_up_location for x in new_requests if x.route_int is not None}
 
         curr_routes.sort(key=lambda x: x.id)
         if time_next is None:
@@ -109,7 +110,7 @@ class Executor:
 
                 # could lead to inconsistencies in dynamic case: not finished stop_events are counted as fully processed, but are cut short(pick-ups not done)
                 if counter < len(curr_routes[route_count].stop_list):
-                    self.bus_delay[curr_routes[route_count].bus] = Helper.sub_times(time_count, time_next)
+                    self.bus_delay[curr_routes[route_count].bus] = Helper.convert_2_minutes(Helper.sub_times(time_count, time_next))
 
             done_r_stops.sort(key=lambda x: x.arriv_time)
             self.check_plan(done_r_stops)

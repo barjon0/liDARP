@@ -37,7 +37,7 @@ def read_requests(request_path, network_graph: LineGraph):
     request_set: Set[Request] = set()
 
     stops: Dict[int, Stop] = {}
-    for stop in network_graph.get_nodes():
+    for stop in network_graph.all_stops:
         stops[stop.id] = stop
 
     with open(request_path, 'r') as request_file:
@@ -48,10 +48,24 @@ def read_requests(request_path, network_graph: LineGraph):
             earl_time: time = datetime.strptime(row[2], "%H:%M:%S").time()
             pick_up: Stop = stops[int(row[3])]
             drop_off: Stop = stops[int(row[4])]
+            req_id: int = int(row[0])
+
+            network_graph.add_request(pick_up, drop_off)
+
+            print(req_id)
             delay_time, numb_transfers, km_planned = Helper.complete_request(pick_up, drop_off, network_graph)
-            request_set.add(Request(int(row[0]), pick_up, drop_off,
-                                    earl_time, Helper.add_times(earl_time, delay_time),
-                                    datetime.strptime(row[1], "%H:%M:%S").time(), numb_transfers, km_planned))
+            request = Request(int(row[0]), pick_up, drop_off,
+                              earl_time, Helper.add_times(earl_time, delay_time),
+                              datetime.strptime(row[1], "%H:%M:%S").time(), numb_transfers, km_planned)
+
+            split_lists: List[List[SplitRequest]] = Helper.find_split_requests(request, network_graph)
+            for variation_numb in range(len(split_lists)):
+                request.split_requests[variation_numb] = split_lists[variation_numb]
+                fill_time_windows(request, split_lists[variation_numb])
+
+            network_graph.delete_request(pick_up, drop_off)
+
+            request_set.add(request)
 
     return request_set
 
@@ -100,6 +114,25 @@ def read_bus_network(network_path: str):
     return busses
 
 
+def fill_time_windows(request: Request, split_req_list: List[SplitRequest]):
+    # go through split_req_list and fill time windows (as big as possible)
+    total_distance: float = sum(Helper.calc_distance(x.pick_up_location, x.drop_off_location) for x in split_req_list)
+
+    shortest_time: float = Helper.calc_time(total_distance) + (len(split_req_list) * Helper.TRANSFER_MINUTES)
+    curr_earl_time: float = 0
+
+    for split_req in split_req_list:
+        prop_time = Helper.add_times(request.earl_start_time, Helper.convert_2_time(curr_earl_time))
+        if split_req.earl_start_time is None or split_req.earl_start_time > prop_time:
+            split_req.earl_start_time = prop_time
+
+        curr_earl_time += Helper.TRANSFER_MINUTES + Helper.calc_time(
+            Helper.calc_distance(split_req.pick_up_location, split_req.drop_off_location))
+        prop_time = Helper.sub_times(request.latest_arr_time, Helper.convert_2_time(shortest_time - curr_earl_time))
+        if split_req.latest_arr_time is None or split_req.latest_arr_time < prop_time:
+            split_req.latest_arr_time = prop_time
+
+
 def main(path_2_config: str):
     with open(path_2_config, 'r') as config_file:
         config: dict = json.load(config_file)
@@ -125,12 +158,7 @@ def main(path_2_config: str):
     requests: Set[Request] = read_requests(request_path, network_graph)
 
     plann: Planner = find_planner(solver_str, network, network_graph)
-    context: Context = find_context(context_str, requests, Executor(network), plann)
-
-    for request in requests:
-        split_lists: List[List[SplitRequest]] = Helper.find_split_requests(request, network_graph)
-        for variation_numb in range(len(split_lists)):
-            request.split_requests[variation_numb] = split_lists[variation_numb]
+    context: Context = find_context(context_str, requests, Executor(network, requests), plann)
 
     context.start_context()
 
@@ -221,7 +249,8 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
             request_wait_time_dict[req] = Helper.sub_times(Helper.sub_times(req.act_end_time, req.act_start_time),
                                                            Helper.convert_2_time(Helper.calc_time(req_km_dict[req])))
             csv_out_req.append(
-                [str(req), str(request_buses_dict[req]), str(request_stop_dict), Helper.time_to_string(request_wait_time_dict[req]), Helper.calc_time(req_km_dict[req])])
+                [str(req), str(request_buses_dict[req]), str(request_stop_dict),
+                 Helper.time_to_string(request_wait_time_dict[req]), Helper.calc_time(req_km_dict[req])])
         else:
             csv_out_req.append([str(req), "-", "-", "-", "-"])
 
@@ -229,7 +258,8 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
     km_travel_total = sum(bus_overall_km_dict.values())
     km_empty_total = sum(bus_empty_km_dict.values())
     km_used_total = km_travel_total - km_empty_total
-    overall_numbers += [[f"km travelled total: {km_travel_total}"], [f"empty km total: {km_empty_total}"], [f"used km total: {km_used_total}"]]
+    overall_numbers += [[f"km travelled total: {km_travel_total}"], [f"empty km total: {km_empty_total}"],
+                        [f"used km total: {km_used_total}"]]
 
     acc_km_req = sum(req_km_dict.values())
 
@@ -255,7 +285,6 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
     with open(f"{path_to_output}/overall_out.csv", mode="w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerows(overall_numbers)
-
 
 
 if __name__ == "__main__":

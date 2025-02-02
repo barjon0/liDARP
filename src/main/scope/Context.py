@@ -36,7 +36,7 @@ class Context:
 
         self.planner.make_plan(curr_requests, curr_bus_locations, bus_user_dict, curr_user_locations, curr_bus_delay)
 
-        self.executor.execute_plan(self.planner.curr_routes, time_next)
+        self.executor.execute_plan(self.planner.curr_routes, curr_requests, time_next)
 
 
 class Static(Context):
