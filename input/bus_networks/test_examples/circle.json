@@ -11,13 +11,13 @@
     {"id": 8, "coordinates": [5,0]}
   ],
   "lines": [
-    {"id": 0, "stops": [0,1,2,3]},
-    {"id": 1, "stops": [4,1,5,6]},
-    {"id": 2, "stops": [7,5,2,8]}
+    {"id": 0, "stops": [0,1,2,3], "depot": [3,1]},
+    {"id": 1, "stops": [4,1,5,6], "depot": [3,1]},
+    {"id": 2, "stops": [7,5,2,8], "depot": [3,1]}
   ],
   "busses": [
-    {"id": 0, "line": 0, "depot": [3,1]},
-    {"id": 1, "line": 1, "depot": [3,1]},
-    {"id": 2, "line": 2, "depot": [3,1]}
+    {"id": 0, "line": 0},
+    {"id": 1, "line": 1},
+    {"id": 2, "line": 2}
   ]
 }

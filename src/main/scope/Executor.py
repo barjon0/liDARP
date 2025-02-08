@@ -14,8 +14,7 @@ class Executor:
     def __init__(self, busses: List[Bus], requests: Set[Request]):
         self.user_locations: Dict[Request, Stop] = {x: x.pick_up_location for x in requests}  # for waiting users
         self.passengers: Dict[Bus, Set[Request]] = {x: set() for x in busses}
-        self.bus_locations: Dict[Bus, Stop] = {x: x.depot for x in
-                                               busses}  # locations of bus (or next location bus is arriving at)
+        self.bus_locations: Dict[Bus, Stop] = {x: x.line.depot for x in busses}  # locations of bus (or next location bus is arriving at)
         self.bus_delay: Dict[Bus, float] = {x: 0 for x in busses}  # time of bus to arriving at next stop
         self.routes = [Route(x) for x in busses]
 

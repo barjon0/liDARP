@@ -35,6 +35,16 @@ def conv_time_to_dist(duration: float):
     return (duration * AVERAGE_KMH) / 60
 
 
+def check_dir(split_req: SplitRequest):
+    line: Line = split_req.line
+    start_idx = line.stops.index(split_req.pick_up_location)
+    end_idx = line.stops.index(split_req.drop_off_location)
+    if start_idx < end_idx:
+        return 0
+    else:
+        return 1
+
+
 def time_to_string(time_object: time):
     return f"{time_object.hour}:{time_object.minute}:{time_object.second}"
 
@@ -75,12 +85,14 @@ def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph:
                     queue.replace(u, alter)
                     pred_dict[u] = ({adj_edge.line}, numb_transfer)
 
-    return queue.final_vals[drop_off_location], pred_dict[drop_off_location][1]
+    fast_time, transfers = queue.final_vals[drop_off_location], pred_dict[drop_off_location][1]
+    return fast_time, transfers
 
 
 def complete_request(pick_up: Stop, drop_off: Stop, network_graph: LineGraph):
     # calculate fastest time -> account for transfers -> plug into max_delay_equation, return corresp. km
     fastest_time, numb_transfers = calc_fastest(pick_up, drop_off, network_graph)
+    assert fastest_time is not math.inf
     long_delay = eval(MAX_DELAY_EQUATION, {"math": math, "x": fastest_time})
     km_planned = conv_time_to_dist(fastest_time - (numb_transfers * TRANSFER_MINUTES))
 
@@ -223,3 +235,61 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
                           request.drop_off_location, network_graph)
 
     return result
+
+
+# check if there are feasible routes regarding time windows,
+# if event_user is pick-up/drop-off and others are already in car
+# use best case time ->
+def is_feasible(event_user: SplitRequest, other_users: Set[SplitRequest], event_type: bool):
+    curr_time: time
+    curr_stop: Stop
+
+    stops: Set[Stop] = {x.drop_off_location for x in other_users}
+    stops |= {x.pick_up_location for x in other_users}
+    cand_dict: Dict[Stop, Set[SplitRequest]] = {x: set() for x in stops}
+    for user in other_users:
+        cand_dict[user.pick_up_location].add(user)
+        cand_dict[user.drop_off_location].add(user)
+
+    key_list: List[Stop] = event_user.line.stops.copy()
+    if check_dir(event_user) == 1:
+        key_list.reverse()
+
+    # check what type and identify stop, that splits pick-ups and drop-offs
+    pick_up_stop_idx: int
+    if event_type:
+        split_stop = event_user.pick_up_location
+        pick_up_stop_idx = key_list.index(split_stop) + 1
+    else:
+        split_stop = event_user.drop_off_location
+        pick_up_stop_idx = key_list.index(split_stop)
+
+    key_list_pick = key_list[:pick_up_stop_idx]
+    key_list_drop = key_list[max(0, pick_up_stop_idx - 1):]
+
+    # walk through pick-up points -> check current_time (earliest possibilities)
+    curr_stop: Stop = next((x for x in key_list_pick if x in cand_dict))
+    curr_time = time(0, 0)
+    for key in key_list_pick:
+        if key in cand_dict:
+            pick_up_users: Set[SplitRequest] = cand_dict[key]
+            duration: float = calc_time(calc_distance(curr_stop, key))
+            curr_time = add_times(curr_time, convert_2_time(duration))
+            for user in pick_up_users:
+                if curr_time < user.earl_start_time:
+                    curr_time = user.earl_start_time
+            curr_stop = key
+            curr_time = add_times(curr_time, convert_2_time(TRANSFER_MINUTES))
+
+    for key in key_list_drop:
+        if key in cand_dict:
+            drop_off_users: Set[SplitRequest] = cand_dict[key]
+            duration: float = calc_time(calc_distance(curr_stop, key))
+            curr_time = add_times(curr_time, convert_2_time(duration))
+            for user in drop_off_users:
+                if curr_time > user.latest_arr_time:
+                    return False
+            curr_stop = key
+            curr_time = add_times(curr_time, convert_2_time(TRANSFER_MINUTES))
+
+    return True

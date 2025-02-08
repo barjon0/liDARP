@@ -84,21 +84,11 @@ def read_bus_network(network_path: str):
 
     lines: Dict[int, Line] = {}
     line_list = network_dict.get('lines')
-    for line in line_list:
-        stops_of_line: List[Stop] = []
-        for stop_id in line["stops"]:
-            stops_of_line.append(stops[stop_id])
-        lines[line["id"]] = Line(line["id"], stops_of_line)
-
-    busses: List[Bus] = []
-    bus_list = network_dict.get('busses')
     depot_dict: Dict[Tuple[int, int], Stop] = {}
-
-    for bus in bus_list:
-        line_of_bus = lines[bus["line"]]
-
+    for line in line_list:
         depot_stop: Stop
-        depot_coord: Tuple[int, int] = tuple(bus["depot"])
+        depot_coord: Tuple[int, int] = tuple(line["depot"])
+
         if depot_coord in depot_dict:
             depot_stop = depot_dict[depot_coord]
         else:
@@ -106,10 +96,20 @@ def read_bus_network(network_path: str):
             depot_stop = Stop(max_id, depot_coord)
             depot_dict[depot_coord] = depot_stop
 
+        stops_of_line: List[Stop] = []
+        for stop_id in line["stops"]:
+            stops_of_line.append(stops[stop_id])
+        lines[line["id"]] = Line(line["id"], stops_of_line, depot_stop)
+
+    busses: List[Bus] = []
+    bus_list = network_dict.get('busses')
+
+    for bus in bus_list:
+        line_of_bus = lines[bus["line"]]
         if Helper.CAPACITY_PER_BUS is None:
-            busses.append(Bus(bus["id"], bus["capacity"], line_of_bus, depot_stop))
+            busses.append(Bus(bus["id"], bus["capacity"], line_of_bus))
         else:
-            busses.append(Bus(bus["id"], Helper.CAPACITY_PER_BUS, line_of_bus, depot_stop))
+            busses.append(Bus(bus["id"], Helper.CAPACITY_PER_BUS, line_of_bus))
 
     return busses
 

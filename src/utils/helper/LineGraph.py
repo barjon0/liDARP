@@ -25,6 +25,7 @@ class LineEdge:
 
 # only aggregated edges of graph, specific for each request(add s -> transfer, transfer -> end, s -> t separately)
 # edges are directed, unique for every line and linked to in both directions
+# incoming edges are at 0, outgoing at 1
 class LineGraph:
     def __init__(self, network: List[Bus]):
         self.all_lines: Set[Line] = {bus.line for bus in network}
@@ -48,30 +49,32 @@ class LineGraph:
     def _make_graph(self):
         from utils.helper import Helper
         # creates basic aggregated edges to be reused
-
         for line_a in self.all_lines:
             transfer_stops_a: Set[Stop] = set()
-            for line_b in (self.all_lines - {line_a}):
-                transfer_stops_a |= (set(line_a.stops) & set(line_b.stops))
-                self._graph_dict |= {x: (set(), set()) for x in transfer_stops_a}
+            for other_line in (self.all_lines - {line_a}):
+                transfer_stops_a |= set(line_a.stops) & set(other_line.stops)
 
             # make lineEdge for all pairs of a line
             for transfer_a in transfer_stops_a:
-                for transfer_b in (transfer_stops_a - {transfer_a}):
-                    duration: float = Helper.calc_time(Helper.calc_distance(transfer_a, transfer_b))
-                    edge_to = LineEdge(transfer_a, transfer_b, line_a, duration)
-                    edge_from = LineEdge(transfer_b, transfer_a, line_a, duration)
-                    self._graph_dict[transfer_a][1].add(edge_to)
-                    self._graph_dict[transfer_b][0].add(edge_to)
-                    self._graph_dict[transfer_a][0].add(edge_from)
-                    self._graph_dict[transfer_b][1].add(edge_from)
+                for other_stop in (transfer_stops_a - {transfer_a}):
+                    duration: float = Helper.calc_time(Helper.calc_distance(transfer_a, other_stop))
+                    edge_to = LineEdge(transfer_a, other_stop, line_a, duration)
+                    if transfer_a in self._graph_dict:
+                        self._graph_dict[transfer_a][1].add(edge_to)
+                    else:
+                        self._graph_dict[transfer_a] = (set(), {edge_to})
+
+                    if other_stop in self._graph_dict:
+                        self._graph_dict[other_stop][0].add(edge_to)
+                    else:
+                        self._graph_dict[transfer_a] = ({edge_to}, set())
 
     def add_request(self, search_pick_up: Stop, search_drop_off: Stop):
         from utils.helper import Helper
         # add request stops to graph
 
         if search_pick_up not in self._graph_dict:
-            pick_up_line = next(x for x in self.all_lines if search_pick_up in x.stops)
+            pick_up_line = next((x for x in self.all_lines if search_pick_up in x.stops))
             transfer_stops: Set[Stop] = self.get_nodes() & set(pick_up_line.stops)
             self._graph_dict[search_pick_up] = (set(), set())
             for stop in transfer_stops:
@@ -81,7 +84,7 @@ class LineGraph:
                 self._graph_dict[stop][0].add(edge_to)
 
         if search_drop_off not in self._graph_dict:
-            drop_off_line = next(x for x in self.all_lines if search_drop_off in x.stops)
+            drop_off_line = next((x for x in self.all_lines if search_drop_off in x.stops))
             transfer_stops: Set[Stop] = self.get_nodes() & set(drop_off_line.stops)
             self._graph_dict[search_drop_off] = (set(), set())
             for stop in transfer_stops:
