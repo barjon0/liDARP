@@ -2,17 +2,18 @@ import csv
 import json
 import sys
 import os
-from datetime import datetime, time
 from typing import Set, List, Dict, Tuple
 
+import Global
 from main.plan.EventBasedMILP import EventBasedMILP
 from main.plan.Planner import Planner
 from main.scope.Context import Context, Static
 from main.scope.Executor import Executor
 from utils.demand.Request import Request
 from utils.demand.SplitRequest import SplitRequest
-from utils.helper import Helper
+from utils.helper import Helper, Timer
 from utils.helper.LineGraph import LineGraph
+from utils.helper.Timer import TimeImpl
 from utils.network.Bus import Bus
 from utils.network.Line import Line
 from utils.network.Stop import Stop
@@ -45,7 +46,7 @@ def read_requests(request_path, network_graph: LineGraph):
 
         next(csv_requests)
         for row in csv_requests:
-            earl_time: time = datetime.strptime(row[2], "%H:%M:%S").time()
+            earl_time = Timer.conv_string_2_Time(row[2])
             pick_up: Stop = stops[int(row[3])]
             drop_off: Stop = stops[int(row[4])]
             req_id: int = int(row[0])
@@ -55,8 +56,8 @@ def read_requests(request_path, network_graph: LineGraph):
             print(req_id)
             delay_time, numb_transfers, km_planned = Helper.complete_request(pick_up, drop_off, network_graph)
             request = Request(int(row[0]), pick_up, drop_off,
-                              earl_time, Helper.add_times(earl_time, delay_time),
-                              datetime.strptime(row[1], "%H:%M:%S").time(), numb_transfers, km_planned)
+                              earl_time, earl_time + delay_time,
+                              Timer.conv_string_2_Time(row[1]), numb_transfers, km_planned)
 
             split_lists: List[List[SplitRequest]] = Helper.find_split_requests(request, network_graph)
             for variation_numb in range(len(split_lists)):
@@ -106,10 +107,10 @@ def read_bus_network(network_path: str):
 
     for bus in bus_list:
         line_of_bus = lines[bus["line"]]
-        if Helper.CAPACITY_PER_BUS is None:
+        if Global.CAPACITY_PER_BUS is None:
             busses.append(Bus(bus["id"], bus["capacity"], line_of_bus))
         else:
-            busses.append(Bus(bus["id"], Helper.CAPACITY_PER_BUS, line_of_bus))
+            busses.append(Bus(bus["id"], Global.CAPACITY_PER_BUS, line_of_bus))
 
     return busses
 
@@ -118,34 +119,59 @@ def fill_time_windows(request: Request, split_req_list: List[SplitRequest]):
     # go through split_req_list and fill time windows (as big as possible)
     total_distance: float = sum(Helper.calc_distance(x.pick_up_location, x.drop_off_location) for x in split_req_list)
 
-    shortest_time: float = Helper.calc_time(total_distance) + (len(split_req_list) * Helper.TRANSFER_MINUTES)
+    shortest_time: float = Timer.calc_time(total_distance) + (len(split_req_list) * Global.TRANSFER_MINUTES)
     curr_earl_time: float = 0
 
-    for split_req in split_req_list:
-        prop_time = Helper.add_times(request.earl_start_time, Helper.convert_2_time(curr_earl_time))
-        if split_req.earl_start_time is None or split_req.earl_start_time > prop_time:
-            split_req.earl_start_time = prop_time
+    # special case for first split, because of fixed time window for pick-up
+    start_split = split_req_list[0]
+    start_split.earl_start_time = request.earl_start_time
+    start_split.latest_start_time = request.earl_start_time.add_minutes(Global.TIME_WINDOW)
 
-        curr_earl_time += Helper.TRANSFER_MINUTES + Helper.calc_time(
+    curr_earl_time += Global.TRANSFER_MINUTES + Timer.calc_time(
+        Helper.calc_distance(start_split.pick_up_location, start_split.drop_off_location))
+
+    start_split.earl_arr_time = start_split.earl_start_time.add_minutes(curr_earl_time)
+    prop_lat_arr = request.latest_arr_time.sub_minutes(shortest_time - curr_earl_time)
+    if start_split.latest_arr_time is None or start_split.latest_start_time < prop_lat_arr:
+        start_split.latest_arr_time = prop_lat_arr
+
+    assert start_split.earl_arr_time < start_split.latest_arr_time
+
+    for split_req in split_req_list[1:]:
+        prop_time_earl_start = request.earl_start_time.add_minutes(curr_earl_time)
+        if split_req.earl_start_time is None or split_req.earl_start_time > prop_time_earl_start:
+            split_req.earl_start_time = prop_time_earl_start
+
+        intermediate_time = Global.TRANSFER_MINUTES + Timer.calc_time(
             Helper.calc_distance(split_req.pick_up_location, split_req.drop_off_location))
-        prop_time = Helper.sub_times(request.latest_arr_time, Helper.convert_2_time(shortest_time - curr_earl_time))
-        if split_req.latest_arr_time is None or split_req.latest_arr_time < prop_time:
-            split_req.latest_arr_time = prop_time
+
+        prop_time_earl_arr = prop_time_earl_start.add_minutes(intermediate_time)
+        if split_req.earl_arr_time is None or split_req.earl_arr_time > prop_time_earl_arr:
+            split_req.earl_arr_time = prop_time_earl_arr
+
+        curr_earl_time += intermediate_time
+        prop_time_lat_arr = request.latest_arr_time.sub_minutes(shortest_time - curr_earl_time)
+        if split_req.latest_arr_time is None or split_req.latest_arr_time < prop_time_lat_arr:
+            split_req.latest_arr_time = prop_time_lat_arr
+
+        prop_time_lat_start = prop_time_lat_arr.sub_minutes(intermediate_time)
+        if split_req.latest_start_time is None or split_req.latest_start_time < prop_time_lat_start:
+            split_req.latest_start_time = prop_time_lat_start
 
 
 def main(path_2_config: str):
     with open(path_2_config, 'r') as config_file:
         config: dict = json.load(config_file)
 
-    Helper.AVERAGE_KMH = config.get('averageKmH')
-    Helper.KM_PER_UNIT = config.get('KmPerUnit')
-    Helper.COST_PER_KM = config.get('costPerKM')
-    Helper.CO2_PER_KM = config.get('co2PerKM')
-    Helper.CAPACITY_PER_BUS = config.get('capacityPerBus')
-    Helper.NUMBER_OF_EXTRA_TRANSFERS = config.get('numberOfExtraTransfers')
-    Helper.MAX_DELAY_EQUATION = config.get('maxDelayEquation')
-    Helper.TRANSFER_MINUTES = config.get('transferMinutes')
-    Helper.TIME_WINDOW = config.get('timeWindowMinutes')
+    Global.AVERAGE_KMH = config.get('averageKmH')
+    Global.KM_PER_UNIT = config.get('KmPerUnit')
+    Global.COST_PER_KM = config.get('costPerKM')
+    Global.CO2_PER_KM = config.get('co2PerKM')
+    Global.CAPACITY_PER_BUS = config.get('capacityPerBus')
+    Global.NUMBER_OF_EXTRA_TRANSFERS = config.get('numberOfExtraTransfers')
+    Global.MAX_DELAY_EQUATION = config.get('maxDelayEquation')
+    Global.TRANSFER_MINUTES = config.get('transferMinutes')
+    Global.TIME_WINDOW = config.get('timeWindowMinutes')
 
     request_path: str = config.get('pathRequestFile')
     network_path: str = config.get('pathNetworkFile')
@@ -204,7 +230,7 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
     bus_empty_km_dict: Dict[Bus, float] = dict.fromkeys(buses, 0)
     req_km_dict: Dict[Request, float] = dict.fromkeys(requests, 0)
     request_stop_dict: Dict[Request, List[int]] = {}
-    request_wait_time_dict: Dict[Request, time] = {}
+    request_wait_time_dict: Dict[Request, TimeImpl] = {}
     request_buses_dict: Dict[Request, List[int]] = {x: [] for x in requests}
 
     csv_out_bus: Dict[Bus, List[List[str]]] = {
@@ -246,11 +272,11 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
 
     for req in requests:
         if req.act_start_time is not None:
-            request_wait_time_dict[req] = Helper.sub_times(Helper.sub_times(req.act_end_time, req.act_start_time),
-                                                           Helper.convert_2_time(Helper.calc_time(req_km_dict[req])))
+            request_wait_time_dict[req] = (req.act_end_time - req.act_start_time).sub_minutes(
+                Timer.calc_time(req_km_dict[req]))
             csv_out_req.append(
                 [str(req), str(request_buses_dict[req]), str(request_stop_dict),
-                 Helper.time_to_string(request_wait_time_dict[req]), Helper.calc_time(req_km_dict[req])])
+                 str(request_wait_time_dict[req]), Timer.calc_time(req_km_dict[req])])
         else:
             csv_out_req.append([str(req), "-", "-", "-", "-"])
 

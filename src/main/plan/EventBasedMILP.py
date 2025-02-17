@@ -1,4 +1,3 @@
-from datetime import time
 from typing import List, Set, Dict, Tuple
 
 from main.plan.Planner import Planner
@@ -8,6 +7,7 @@ from utils.demand.SplitRequest import SplitRequest
 from utils.helper import Helper
 from utils.helper.EventGraph import EventGraph, Event, PickUpEvent, DropOffEvent, IdleEvent
 from utils.helper.LineGraph import LineGraph
+from utils.helper.Timer import TimeImpl
 from utils.network.Bus import Bus
 from utils.network.Line import Line
 from utils.network.Stop import Stop
@@ -29,30 +29,6 @@ def check_on_route(split: SplitRequest, search_loc: Stop):
     return False
 
 
-# intervals that overlap with equal are not to be counted
-def iterate_sweep_line(queue: dict, event_points: list, input_points):
-    status_set: Set[SplitRequest] = set()
-    output_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = {x: (set(), set()) for x in
-                                                                                    input_points}
-
-    for stop in event_points:
-        for req_del in queue[stop][1]:
-            for other in status_set:
-                if other.id is not req_del.id:
-                    output_dict[req_del][1].add(other)
-
-        status_set -= queue[stop][1]
-
-        for req_ins in queue[stop][0]:
-            for other in status_set | queue[stop][0]:
-                if other.id != req_ins.id:
-                    output_dict[req_ins][0].add(other)
-
-        status_set |= queue[stop][0]
-
-    return output_dict
-
-
 def sweep_line_local(splits_in_dir: Set[SplitRequest], line: Line, direction: int):
     # extract event points(make queue with insert and delete objects) -> go trough queue -> update status_dict -> build output from keys
     queue: Dict[Stop, Tuple[Set[SplitRequest], Set[SplitRequest]]] = {x: (set(), set()) for x in line.stops}
@@ -65,20 +41,90 @@ def sweep_line_local(splits_in_dir: Set[SplitRequest], line: Line, direction: in
     if direction == 1:
         event_points.reverse()
 
-    return iterate_sweep_line(queue, event_points, splits_in_dir)
+    status_set: Set[SplitRequest] = set()
+    output_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = {x: (set(), set()) for x in
+                                                                                    splits_in_dir}
+
+    for stop in event_points:
+
+        status_set -= queue[stop][1]
+        for req_del in queue[stop][1]:
+            for other_del in queue[stop][1]:
+                if req_del.id < other_del.id:
+                    output_dict[req_del][1].add(other_del)
+            for other in status_set:
+                if other.id != req_del.id:
+                    output_dict[req_del][1].add(other)
+
+        for req_in in queue[stop][0]:
+            for other_new in queue[stop][0]:
+                if req_in.id < other_new.id:
+                    output_dict[req_in][0].add(other_new)
+
+            for other in status_set:
+                if other.id != req_in.id:
+                    output_dict[req_in][0].add(other)
+
+        status_set |= queue[stop][0]
+
+    return output_dict
 
 
 def sweep_line_time(splits_in_dir: Set[SplitRequest]):
-    queue: Dict[time, Tuple[Set[SplitRequest], Set[SplitRequest]]] = \
-        {x.earl_start_time: (set(), set()) for x in splits_in_dir}
-    queue |= {x.latest_arr_time: (set(), set()) for x in splits_in_dir}
+    queue: Dict[TimeImpl, List[Set[SplitRequest]]] = {}
+    # fill the queue, (yes this looks horrible, i know...)
+    for req in splits_in_dir:
+        if req.earl_start_time in queue:
+            queue[req.earl_start_time][0].add(req)
+        else:
+            queue[req.earl_start_time] = [{req}, set(), set(), set()]
 
-    for split_req in splits_in_dir:
-        queue[split_req.earl_start_time][0].add(split_req)
-        queue[split_req.latest_arr_time][1].add(split_req)
+        if req.latest_start_time in queue:
+            queue[req.latest_start_time][1].add(req)
+        else:
+            queue[req.latest_start_time] = [set(), {req}, set(), set()]
+
+        if req.earl_arr_time in queue:
+            queue[req.earl_arr_time][2].add(req)
+        else:
+            queue[req.earl_arr_time] = [set(), set(), {req}, set()]
+
+        if req.latest_arr_time in queue:
+            queue[req.latest_arr_time][3].add(req)
+        else:
+            queue[req.latest_arr_time] = [set(), set(), set(), {req}]
 
     event_points = sorted(queue.keys())
-    return iterate_sweep_line(queue, event_points, splits_in_dir)
+    status_tuple: Tuple[Set[SplitRequest], Set[SplitRequest]] = (set(), set())      # tuple of sets of split_requests for both interval types
+    total_status: Set[SplitRequest] = set()         # all open intervals [earliest_start, latest_finish]
+    output_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = {x: (set(), set()) for x in
+                                                                                    splits_in_dir}
+
+    for time_obj in event_points:
+        status_tuple[0].difference_update(queue[time_obj][1])
+        status_tuple[1].difference_update(queue[time_obj][3])
+        total_status -= queue[time_obj][3]
+
+        status_tuple[1].update(queue[time_obj][2])
+        status_tuple[0].update(queue[time_obj][0])
+        total_status |= queue[time_obj][0]
+
+        for drop_open in queue[time_obj][2]:
+            for other in total_status:
+                if other.id != drop_open.id:
+                    output_dict[drop_open][1].add(other)
+
+        for pick_open in queue[time_obj][0]:
+            for other in total_status:
+                if other.id != pick_open.id:
+                    output_dict[pick_open][0].add(other)
+                    # check also if candidate in other direction
+                    if other in status_tuple[0]:
+                        output_dict[other][0].add(pick_open)
+                    if other in status_tuple[1]:
+                        output_dict[other][1].add(pick_open)
+
+    return output_dict
 
 
 class EventBasedMILP(Planner):
@@ -186,14 +232,14 @@ class EventBasedMILP(Planner):
 
                 # make permutations (check if some split_requests already started)
                 for event_user in agg_cand_dict.keys():
-                    permutations |= {PickUpEvent(event_user, set())} | self.get_permutations(event_user, list(agg_cand_dict[event_user][0]), set(), 0, True)
-                    permutations |= {DropOffEvent(event_user, set())} | self.get_permutations(event_user, list(agg_cand_dict[event_user][1]), set(), 0, False)
+                    permutations |= {PickUpEvent(event_user, set())} | self.get_permutations(event_user, list(
+                        agg_cand_dict[event_user][0]), set(), 0, True)
+                    permutations |= {DropOffEvent(event_user, set())} | self.get_permutations(event_user, list(
+                        agg_cand_dict[event_user][1]), set(), 0, False)
 
             self.event_graph.add_events(permutations)
 
         print("soooo??")
-
-
 
         # build lin. model
         # solve model

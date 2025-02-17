@@ -1,5 +1,6 @@
 from typing import List, Set, Dict, Tuple
 
+from utils.helper import Timer
 from utils.network import Stop
 from utils.network.Bus import Bus
 from utils.network.Line import Line
@@ -12,7 +13,7 @@ class LineEdge:
         self.v2 = v2
         self.line = line
         if duration == -1:
-            self.duration = Helper.calc_time(Helper.calc_distance(v1, v2))
+            self.duration = Timer.calc_time(Helper.calc_distance(v1, v2))
         else:
             self.duration = duration
 
@@ -57,7 +58,7 @@ class LineGraph:
             # make lineEdge for all pairs of a line
             for transfer_a in transfer_stops_a:
                 for other_stop in (transfer_stops_a - {transfer_a}):
-                    duration: float = Helper.calc_time(Helper.calc_distance(transfer_a, other_stop))
+                    duration: float = Timer.calc_time(Helper.calc_distance(transfer_a, other_stop))
                     edge_to = LineEdge(transfer_a, other_stop, line_a, duration)
                     if transfer_a in self._graph_dict:
                         self._graph_dict[transfer_a][1].add(edge_to)
@@ -78,7 +79,7 @@ class LineGraph:
             transfer_stops: Set[Stop] = self.get_nodes() & set(pick_up_line.stops)
             self._graph_dict[search_pick_up] = (set(), set())
             for stop in transfer_stops:
-                duration: float = Helper.calc_time(Helper.calc_distance(search_pick_up, stop))
+                duration: float = Timer.calc_time(Helper.calc_distance(search_pick_up, stop))
                 edge_to = LineEdge(search_pick_up, stop, pick_up_line, duration)
                 self._graph_dict[search_pick_up][1].add(edge_to)
                 self._graph_dict[stop][0].add(edge_to)
@@ -88,7 +89,7 @@ class LineGraph:
             transfer_stops: Set[Stop] = self.get_nodes() & set(drop_off_line.stops)
             self._graph_dict[search_drop_off] = (set(), set())
             for stop in transfer_stops:
-                duration: float = Helper.calc_time(Helper.calc_distance(stop, search_drop_off))
+                duration: float = Timer.calc_time(Helper.calc_distance(stop, search_drop_off))
                 edge_from = LineEdge(stop, search_drop_off, drop_off_line, duration)
                 self._graph_dict[search_drop_off][0].add(edge_from)
                 self._graph_dict[stop][1].add(edge_from)

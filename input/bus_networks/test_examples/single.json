@@ -6,9 +6,9 @@
     {"id": 3, "coordinates": [6,0]}
   ],
   "lines": [
-    {"id": 0, "stops": [0,1,2,3]}
+    {"id": 0, "stops": [0,1,2,3], "depot": [3,1]}
   ],
   "busses": [
-    {"id": 0, "line": 0, "depot": [3,1]}
+    {"id": 0, "line": 0}
   ]
 }

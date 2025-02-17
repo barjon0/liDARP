@@ -1,14 +1,14 @@
-from datetime import time
 from typing import Set, Dict
 
 from main.plan.Planner import Planner
 from main.scope.Executor import Executor
 from utils.demand.Request import Request
+from utils.helper.Timer import TimeImpl
 
 
 class Context:
     def __init__(self, requests: Set[Request], executor: Executor, planner: Planner):
-        self.time_table: Dict[time, Set[Request]] = self.create_time_table(requests)
+        self.time_table: Dict[TimeImpl, Set[Request]] = self.create_time_table(requests)
         self.executor = executor
         self.planner = planner
 
@@ -16,10 +16,9 @@ class Context:
         NotImplementedError("instantiated abstract context class")
 
     def start_context(self):
-
         key_list = list(self.time_table.keys())
         for t in range(len(key_list) - 1):
-            self.trigger_event(key_list[t], key_list[t+1])
+            self.trigger_event(key_list[t], key_list[t + 1])
 
         self.trigger_event(key_list[len(key_list) - 1])
 
@@ -27,7 +26,7 @@ class Context:
     # gives curr. Standing + new requests to planner
     # waits some time for planning
     # give new plan to executor -> execute()
-    def trigger_event(self, time_now: time, time_next=None):
+    def trigger_event(self, time_now: TimeImpl, time_next=None):
         curr_requests = self.time_table[time_now]
         curr_bus_locations = self.executor.bus_locations.copy()
         curr_user_locations = self.executor.user_locations.copy()
@@ -44,4 +43,4 @@ class Static(Context):
         super().__init__(requests, executor, planner)
 
     def create_time_table(self, requests: Set[Request]):
-        return {time(0, 0): requests}
+        return {TimeImpl(0, 0): requests}

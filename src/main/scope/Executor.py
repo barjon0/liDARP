@@ -1,8 +1,8 @@
-from datetime import time
 from typing import Set, Dict, List
 
 from utils.demand.Request import Request
 from utils.helper import Helper
+from utils.helper.Timer import TimeImpl
 from utils.network.Bus import Bus
 from utils.network.Stop import Stop
 
@@ -20,10 +20,10 @@ class Executor:
 
         self.routes.sort(key=lambda x: x.bus.id)
 
-    def check_plan(self, done_r_stops: List[RouteStop], final_time: time = None):
+    def check_plan(self, done_r_stops: List[RouteStop], final_time: TimeImpl = None):
 
         waiting_bus_events: List[RouteStop] = []
-        curr_time: time
+        curr_time: TimeImpl
         for r_stop in done_r_stops:
             curr_time = r_stop.arriv_time
             self.bus_locations[r_stop.bus] = r_stop.stop
@@ -76,7 +76,7 @@ class Executor:
                         u_picked.act_start_time = wait_event.depart_time
 
     # could observe everything here make sure there are no inconsistencies
-    def execute_plan(self, curr_routes: List[Route], new_requests: Set[Request], time_next: time):
+    def execute_plan(self, curr_routes: List[Route], new_requests: Set[Request], time_next: TimeImpl):
         # if time_next = none : -> just copy entire plan to result
         # else: look through curr. route until just before time_next -> copy to result -> update dictionaries
         self.user_locations |= {x: x.pick_up_location for x in new_requests if x.route_int is not None}
@@ -96,7 +96,7 @@ class Executor:
         else:
             done_r_stops = []
             for route_count in range(len(curr_routes)):
-                time_count: time
+                time_count: TimeImpl
                 if len(curr_routes[route_count].stop_list) > 0:
                     time_count = curr_routes[route_count].stop_list[0].arriv_time
                 counter = 0
@@ -109,7 +109,7 @@ class Executor:
 
                 # could lead to inconsistencies in dynamic case: not finished stop_events are counted as fully processed, but are cut short(pick-ups not done)
                 if counter < len(curr_routes[route_count].stop_list):
-                    self.bus_delay[curr_routes[route_count].bus] = Helper.convert_2_minutes(Helper.sub_times(time_count, time_next))
+                    self.bus_delay[curr_routes[route_count].bus] = (time_count - time_next).get_in_minutes()
 
             done_r_stops.sort(key=lambda x: x.arriv_time)
             self.check_plan(done_r_stops)
