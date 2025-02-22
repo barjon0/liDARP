@@ -140,28 +140,28 @@ class EventBasedMILP(Planner):
     def get_permutations(self, event_user: SplitRequest, cand_list: List[SplitRequest], curr_permut: Set[SplitRequest],
                          index: int, event_type: bool) -> Set[Event]:
         # if max length exceeded stop
+        return_set: Set[Event] = set()
         if len(curr_permut) < self.line_max[event_user.line]:
 
             # check for next candidate to be distinct from previous ones
             id_set: Set[int] = {x.id for x in curr_permut}
-            while len(cand_list) > index and cand_list[index].id in id_set:
+            while len(cand_list) > index:
+                # if no one left stop
+                if not cand_list[index].id in id_set:
+
+                    # add candidate to current_permutation, check for feasibility
+                    next_permut = curr_permut | {cand_list[index]}
+
+                    earl_time, lat_time = Helper.get_event_window(event_user, next_permut, event_type)
+                    if earl_time is not None and lat_time is not None:
+                        event: Event
+                        if event_type:
+                            event = PickUpEvent(event_user, next_permut, earl_time, lat_time)
+                        else:
+                            event = DropOffEvent(event_user, next_permut, earl_time, lat_time)
+                        return_set |= {event} | self.get_permutations(event_user, cand_list, next_permut, index + 1, event_type)
                 index += 1
-
-            # if no one left stop
-            if len(cand_list) > index:
-
-                # add candidate to current_permutation, check for feasibility
-                next_permut = curr_permut | {cand_list[index]}
-
-                if Helper.is_feasible(event_user, next_permut, event_type):
-                    event: Event
-                    if event_type:
-                        event = PickUpEvent(event_user, next_permut)
-                    else:
-                        event = DropOffEvent(event_user, next_permut)
-                    return {event} | self.get_permutations(event_user, cand_list, next_permut, index + 1, event_type)
-
-        return set()
+        return return_set
 
     def walk_route(self, req: Request, bus_user_dict: Dict[Bus, Set[Request]], next_bus_locations: Dict[Bus, Stop]):
         # find current position -> walk among selected route to position -> return all future splits
@@ -214,7 +214,8 @@ class EventBasedMILP(Planner):
 
         for line in line_dir_dict.keys():
             permutations: Set[Event] = set()
-            permutations.add(IdleEvent(line))
+            idle_event = IdleEvent(line)
+            permutations.add(idle_event)
 
             for direction in range(2):
                 # direction 0 is normal, 1 is reverse
@@ -232,13 +233,14 @@ class EventBasedMILP(Planner):
 
                 # make permutations (check if some split_requests already started)
                 for event_user in agg_cand_dict.keys():
-                    permutations |= {PickUpEvent(event_user, set())} | self.get_permutations(event_user, list(
+                    permutations |= {PickUpEvent(event_user, set(), event_user.earl_start_time, event_user.latest_start_time)} | self.get_permutations(event_user, list(
                         agg_cand_dict[event_user][0]), set(), 0, True)
-                    permutations |= {DropOffEvent(event_user, set())} | self.get_permutations(event_user, list(
+                    permutations |= {DropOffEvent(event_user, set(), event_user.earl_arr_time, event_user.latest_arr_time)} | self.get_permutations(event_user, list(
                         agg_cand_dict[event_user][1]), set(), 0, False)
 
             self.event_graph.add_events(permutations)
-
+            self.event_graph.check_connectivity(idle_event)
+            # unnecessary all nodes should be valid by construction, could use for debugging though
         print("soooo??")
 
         # build lin. model

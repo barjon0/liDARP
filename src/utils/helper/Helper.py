@@ -79,9 +79,6 @@ def complete_request(pick_up: Stop, drop_off: Stop, network_graph: LineGraph):
     return Timer.convert_2_time(long_delay + fastest_time + Global.TIME_WINDOW), numb_transfers, km_planned
 
 
-
-
-
 # check if hop-count exceeded -> add current stop to all open lists -> if not source: recursive call to neighbours
 def rec_dfs(last_line: LineEdge, curr_minutes: float, curr_transfers: int, prev_visited: Set[Stop],
             curr_open: List[List[SplitRequest]], look_up_dict: Dict[LineEdge, SplitRequest], max_time: float,
@@ -165,7 +162,8 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
     start_tupels: List[LineEdge] = network_graph.get_edges_out(request.pick_up_location)
 
     for start_sub_line in start_tupels:
-        result += rec_dfs(start_sub_line, Global.TRANSFER_MINUTES + start_sub_line.duration, 1, {request.pick_up_location},
+        result += rec_dfs(start_sub_line, Global.TRANSFER_MINUTES + start_sub_line.duration, 1,
+                          {request.pick_up_location},
                           [[]], agg_edges_dict, max_time, request.numb_transfer + Global.NUMBER_OF_EXTRA_TRANSFERS,
                           request.drop_off_location, network_graph)
 
@@ -175,14 +173,18 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
 # check if there are feasible routes regarding time windows,
 # if event_user is pick-up/drop-off and others are already in car
 # use best case time ->
-def is_feasible(event_user: SplitRequest, other_users: Set[SplitRequest], event_type: bool):
+def get_event_window(event_user: SplitRequest, other_users: Set[SplitRequest], event_type: bool) -> (
+        TimeImpl, TimeImpl):
     curr_time: TimeImpl
     curr_stop: Stop
+    earl_depart: TimeImpl
+    latest_depart: TimeImpl
 
-    stops: Set[Stop] = {x.drop_off_location for x in other_users}
-    stops |= {x.pick_up_location for x in other_users}
+    all_users = other_users | {event_user}
+    stops: Set[Stop] = {x.drop_off_location for x in all_users}
+    stops |= {x.pick_up_location for x in all_users}
     cand_dict: Dict[Stop, Set[SplitRequest]] = {x: set() for x in stops}
-    for user in other_users:
+    for user in all_users:
         cand_dict[user.pick_up_location].add(user)
         cand_dict[user.drop_off_location].add(user)
 
@@ -194,17 +196,18 @@ def is_feasible(event_user: SplitRequest, other_users: Set[SplitRequest], event_
     pick_up_stop_idx: int
     if event_type:
         split_stop = event_user.pick_up_location
-        pick_up_stop_idx = key_list.index(split_stop) + 1
+        first_drop_off_idx = key_list.index(split_stop) + 1
     else:
         split_stop = event_user.drop_off_location
-        pick_up_stop_idx = key_list.index(split_stop)
+        first_drop_off_idx = key_list.index(split_stop)
 
-    key_list_pick = key_list[:pick_up_stop_idx]
-    key_list_drop = key_list[max(0, pick_up_stop_idx - 1):]
+    key_list_pick = key_list[:first_drop_off_idx]
+    key_list_drop = key_list[first_drop_off_idx:]
 
     # walk through pick-up points -> check current_time (earliest possibilities)
     curr_stop: Stop = next((x for x in key_list_pick if x in cand_dict))
     curr_time = TimeImpl(0, 0)
+    latest_depart = TimeImpl(23, 59, 59)
     for key in key_list_pick:
         if key in cand_dict:
             pick_up_users: Set[SplitRequest] = cand_dict[key]
@@ -213,18 +216,56 @@ def is_feasible(event_user: SplitRequest, other_users: Set[SplitRequest], event_
             for user in pick_up_users:
                 if curr_time < user.earl_start_time:
                     curr_time = user.earl_start_time
+                elif curr_time > user.latest_start_time:
+                    return (None, None)
             curr_stop = key
             curr_time = curr_time.add_minutes(Global.TRANSFER_MINUTES)
+
+    if event_type:
+        rem_travel_time = 0
+        earl_depart = curr_time
+
+        for users in cand_dict[event_user.pick_up_location]:
+            poss_time = users.latest_start_time.add_minutes(Global.TRANSFER_MINUTES)
+            if latest_depart > poss_time:
+                latest_depart = poss_time
+    else:
+        duration = Timer.calc_time(calc_distance(curr_stop, event_user.drop_off_location))
+        rem_travel_time = -duration
+        earl_depart = curr_time.add_minutes(duration + Global.TRANSFER_MINUTES)
+
+    # need to check for all remaining if latest_arr time is satisfied,
+    # -> also check latest possible departure: sum travel times from here, check latest_arr time - travel time, choose leftmost
 
     for key in key_list_drop:
         if key in cand_dict:
             drop_off_users: Set[SplitRequest] = cand_dict[key]
             duration: float = Timer.calc_time(calc_distance(curr_stop, key))
+
+            rem_travel_time += duration
             curr_time = curr_time.add_minutes(duration)
             for user in drop_off_users:
                 if curr_time > user.latest_arr_time:
-                    return False
+                    return (None, None)
+
+                poss_time = user.latest_arr_time.sub_minutes(rem_travel_time - Global.TRANSFER_MINUTES)
+                if poss_time < latest_depart:
+                    latest_depart = poss_time
             curr_stop = key
             curr_time = curr_time.add_minutes(Global.TRANSFER_MINUTES)
+            rem_travel_time += Global.TRANSFER_MINUTES
 
-    return True
+    if earl_depart > latest_depart:
+        return (None, None)
+    else:
+        return (earl_depart, latest_depart)
+
+
+def check_overlap(interval_1_start: TimeImpl, interval_1_end: TimeImpl, interval_2_start: TimeImpl,
+                  interval_2_end: TimeImpl):
+    if interval_1_start > interval_2_end:
+        return False
+    elif interval_1_end < interval_2_start:
+        return False
+    else:
+        return True

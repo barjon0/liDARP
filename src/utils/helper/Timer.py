@@ -42,14 +42,14 @@ class TimeImpl:
     second: int = 0
 
     def __post_init__(self):
-        if 0 <= self.hour <= 24:
-            if 0 <= self.minute <= 60:
-                if not (0 <= self.second <= 60):
+        if 0 <= self.hour <= 23:
+            if 0 <= self.minute <= 59:
+                if not (0 <= self.second <= 59):
                     ValueError(f"second not in range 0 to 60; was {self.second}")
             else:
                 ValueError(f"minute not in range 0 to 60; was {self.minute}")
         else:
-            ValueError(f"hour not in range 0 to 24; was {self.second}")
+            ValueError(f"hour not in range 0 to 23; was {self.second}")
 
     def get_in_minutes(self):
         sum_min: float = 0

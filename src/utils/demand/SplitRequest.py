@@ -8,3 +8,6 @@ class SplitRequest(AbstractRequest):
         self.line = used_line
         self.in_action: bool = False        # declare if split_request already started or finished(maybe add start and end times?)
         super().__init__(parent_id, pick_up_location, drop_off_location)
+
+    def __repr__(self):
+        return f"SplitRequest(id:{self.id}; line:{self.line.id}; pick-up:{self.pick_up_location.id}; drop-off:{self.drop_off_location.id})"
