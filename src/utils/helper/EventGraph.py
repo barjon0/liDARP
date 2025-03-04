@@ -8,14 +8,19 @@ from utils.network.Line import Line
 
 
 class Event:
-    def __init__(self, first: SplitRequest = None, remaining=None):
+    id_counter: int = 0
+
+    def __init__(self, first: SplitRequest = None, remaining: Set[SplitRequest] = None):
         if remaining is None:
             remaining = set()
-        self.remaining = {x.id for x in remaining}
+        self.remaining_id = {x.id for x in remaining}
+        self.remaining_split_id = {x.split_id for x in remaining}
         self.first = first
         self.earl_depart = None
         self.lat_depart = None
         self.location = None
+        self.id = Event.id_counter
+        Event.id_counter += 1
 
     def set_before_event(self):
         pass
@@ -41,6 +46,9 @@ class IdleEvent(Event):
     def __repr__(self):
         return f"IdleEvent(user:-; others:[]; location:{self.location.id}; line:{self.line.id})"
 
+    def __str__(self):
+        return f"(-,-,{self.location.id},{self.line.id})"
+
 
 class PickUpEvent(Event):
     def __init__(self, first: SplitRequest, remaining: Set[SplitRequest], earl_time: TimeImpl, lat_time: TimeImpl):
@@ -50,13 +58,16 @@ class PickUpEvent(Event):
         self.lat_depart = lat_time
 
     def set_before_event(self):
-        return frozenset(self.remaining)
+        return frozenset(self.remaining_split_id)
 
     def set_after_event(self):
-        return frozenset(self.remaining | {self.first.id})
+        return frozenset(self.remaining_split_id | {self.first.split_id})
 
     def __repr__(self):
-        return f"PickUpEvent(user:{self.first.id}; others:{self.remaining}; location:{self.location.id}; line:{self.first.line.id})"
+        return f"PickUpEvent(user:{self.first.id}; others:{self.remaining_id}; location:{self.location.id}; line:{self.first.line.id})"
+
+    def __str__(self):
+        return f"({self.first.id},{self.remaining_id},{self.location.id},{self.first.line.id})+"
 
 
 class DropOffEvent(Event):
@@ -67,19 +78,22 @@ class DropOffEvent(Event):
         self.lat_depart = lat_time
 
     def set_before_event(self):
-        return frozenset(self.remaining | {self.first.id})
+        return frozenset(self.remaining_split_id | {self.first.split_id})
 
     def set_after_event(self):
-        return frozenset(self.remaining)
+        return frozenset(self.remaining_split_id)
 
     def __repr__(self):
-        return f"DropOffEvent(user:{self.first.id}; others:{self.remaining}; location:{self.location.id}; line:{self.first.line.id})"
+        return f"DropOffEvent(user:{self.first.id}; others:{self.remaining_id}; location:{self.location.id}; line:{self.first.line.id})"
+
+    def __str__(self):
+        return f"({self.first.id},{self.remaining_id},{self.location.id},{self.first.line.id})-"
 
 
 class EventGraph:
     def __init__(self):
-        self._request_dict: Dict[SplitRequest, Tuple[Set[Event], Set[Event]]] = {}
-        self.edge_dict: Dict[Event, Tuple[Set[Event], Set[Event]]] = {}
+        self.request_dict: Dict[SplitRequest, Tuple[Set[Event], Set[Event]]] = {}
+        self.edge_dict: Dict[Event, Tuple[List[Event], List[Event]]] = {}
 
     def get_edges_in(self, event: Event):
         return self.edge_dict[event][0]
@@ -117,17 +131,17 @@ class EventGraph:
 
     # add all events of a single line together, generates edges
     def add_events(self, event_set_line: Set[Event]):
-        self.edge_dict |= {x: (set(), set()) for x in event_set_line}
+        self.edge_dict |= {x: ([], []) for x in event_set_line}
         split_requests = {x.first for x in event_set_line if not isinstance(x, IdleEvent)}
-        self._request_dict |= {x: (set(), set()) for x in split_requests}
+        self.request_dict |= {x: (set(), set()) for x in split_requests}
 
         hash_dict: Dict[int, Set[Tuple[bool, Event]]] = {}
 
         for event in event_set_line:
             if isinstance(event, PickUpEvent):
-                self._request_dict[event.first][0].add(event)
+                self.request_dict[event.first][0].add(event)
             elif isinstance(event, DropOffEvent):
-                self._request_dict[event.first][1].add(event)
+                self.request_dict[event.first][1].add(event)
 
             key_before: int = hash(event.set_before_event())
             key_after: int = hash(event.set_after_event())
@@ -152,5 +166,5 @@ class EventGraph:
                     duration = Timer.calc_time(Helper.calc_distance(event_before.location, event_after.location))
                     if (event_before is not event_after) and event_before.earl_depart.add_minutes(
                             duration + Global.TRANSFER_MINUTES) <= event_after.lat_depart:
-                        self.edge_dict[event_after][0].add(event_before)
-                        self.edge_dict[event_before][1].add(event_after)
+                        self.edge_dict[event_after][0].append(event_before)
+                        self.edge_dict[event_before][1].append(event_after)

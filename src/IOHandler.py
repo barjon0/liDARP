@@ -54,8 +54,8 @@ def read_requests(request_path, network_graph: LineGraph):
             network_graph.add_request(pick_up, drop_off)
 
             print(req_id)
-            delay_time, numb_transfers, km_planned = Helper.complete_request(pick_up, drop_off, network_graph)
-            request = Request(int(row[0]), pick_up, drop_off,
+            delay_time, numb_transfers, km_planned = Helper.complete_request(pick_up, drop_off, network_graph, int(row[5]))
+            request = Request(int(row[0]), int(row[5]), pick_up, drop_off,
                               earl_time, earl_time + delay_time,
                               Timer.conv_string_2_Time(row[1]), numb_transfers, km_planned)
 
@@ -100,17 +100,19 @@ def read_bus_network(network_path: str):
         stops_of_line: List[Stop] = []
         for stop_id in line["stops"]:
             stops_of_line.append(stops[stop_id])
-        lines[line["id"]] = Line(line["id"], stops_of_line, depot_stop)
+        if Global.CAPACITY_PER_LINE is None:
+            if "capacity" in line:
+                lines[line["id"]] = Line(line["id"], stops_of_line, depot_stop, int(line["capacity"]), Timer.conv_string_2_Time(line["startTime"]), Timer.conv_string_2_Time(line["endTime"]))
+            else:
+                ValueError("No Global Capacity or individual given")
+        else:
+            lines[line["id"]] = Line(line["id"], stops_of_line, depot_stop, Global.CAPACITY_PER_LINE, Timer.conv_string_2_Time(line["startTime"]), Timer.conv_string_2_Time(line["endTime"]))
 
     busses: List[Bus] = []
     bus_list = network_dict.get('busses')
 
     for bus in bus_list:
-        line_of_bus = lines[bus["line"]]
-        if Global.CAPACITY_PER_BUS is None:
-            busses.append(Bus(bus["id"], bus["capacity"], line_of_bus))
-        else:
-            busses.append(Bus(bus["id"], Global.CAPACITY_PER_BUS, line_of_bus))
+        busses.append(Bus(bus["id"], lines[bus["line"]]))
 
     return busses
 
@@ -167,11 +169,12 @@ def main(path_2_config: str):
     Global.KM_PER_UNIT = config.get('KmPerUnit')
     Global.COST_PER_KM = config.get('costPerKM')
     Global.CO2_PER_KM = config.get('co2PerKM')
-    Global.CAPACITY_PER_BUS = config.get('capacityPerBus')
+    Global.CAPACITY_PER_LINE = config.get('capacityPerLine')
     Global.NUMBER_OF_EXTRA_TRANSFERS = config.get('numberOfExtraTransfers')
     Global.MAX_DELAY_EQUATION = config.get('maxDelayEquation')
     Global.TRANSFER_MINUTES = config.get('transferMinutes')
     Global.TIME_WINDOW = config.get('timeWindowMinutes')
+    Global.CPLEX_PATH = config.get('pathCPLEX')
 
     request_path: str = config.get('pathRequestFile')
     network_path: str = config.get('pathNetworkFile')
@@ -253,9 +256,9 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
             csv_out_bus[plan.bus].append([1] + prev_event.to_output())
             counter = 2
 
-            for curr_event in plan.stop_list[1:]:
-                csv_out_bus[plan.bus].append([counter] + curr_event.to_output())
-                km_between = Helper.calc_distance(prev_event.stop, curr_event.stop)
+            for curr_stop in plan.stop_list[1:]:
+                csv_out_bus[plan.bus].append([counter] + curr_stop.to_output())
+                km_between = Helper.calc_distance(prev_event.stop, curr_stop.stop)
                 bus_overall_km_dict[plan.bus] += km_between
                 if len(passengers) == 0:
                     bus_empty_km_dict[plan.bus] += km_between
@@ -263,11 +266,11 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
                     for user in passengers:
                         req_km_dict[user] += km_between
 
-                for u_dropped in curr_event.drop_off:
-                    request_stop_dict[u_dropped].append(curr_event.stop.id)
-                    request_buses_dict[u_dropped].append(curr_event.bus.id)
+                for u_dropped in curr_stop.drop_off:
+                    request_stop_dict[u_dropped].append(curr_stop.stop.id)
+                    request_buses_dict[u_dropped].append(curr_stop.bus.id)
 
-                passengers = (passengers - curr_event.drop_off) | curr_event.pick_up
+                passengers = (passengers - curr_stop.drop_off) | curr_stop.pick_up
                 counter += 1
 
     for req in requests:
@@ -275,7 +278,7 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
             request_wait_time_dict[req] = (req.act_end_time - req.act_start_time).sub_minutes(
                 Timer.calc_time(req_km_dict[req]))
             csv_out_req.append(
-                [str(req), str(request_buses_dict[req]), str(request_stop_dict),
+                [str(req), str(request_buses_dict[req]), str(request_stop_dict[req]),
                  str(request_wait_time_dict[req]), Timer.calc_time(req_km_dict[req])])
         else:
             csv_out_req.append([str(req), "-", "-", "-", "-"])

@@ -35,6 +35,10 @@ def conv_string_2_Time(time_string: str):
     return TimeImpl(int(attr[0]), int(attr[1]), int(attr[2]))
 
 
+def create_time_object(minutes: float):
+    return TimeImpl(0, 0).add_minutes(minutes)
+
+
 @dataclass(frozen=True)
 class TimeImpl:
     hour: int

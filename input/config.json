@@ -1,6 +1,7 @@
 {
   "pathRequestFile": "../input/requests/test_requests/circle.csv",
   "pathNetworkFile": "../input/bus_networks/test_examples/circle.json",
+  "pathCPLEX": "C:/Program Files/IBM/ILOG/CPLEX_Studio2211/cplex/python/3.9/x64_win64/cplex",
   "outputPath": "../output",
   "context": "static",
   "solver": "eventMILP",
@@ -8,7 +9,7 @@
   "KmPerUnit": 6,
   "costPerKM": 0.15,
   "co2PerKM": 0.208,
-  "capacityPerBus": 6,
+  "capacityPerLine": 6,
   "numberOfExtraTransfers": 1,
   "maxDelayEquation": "math.log(x) / math.log(1.2)",
   "transferMinutes": 2,

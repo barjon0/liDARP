@@ -1,5 +1,6 @@
 from typing import List, Set, Dict, Tuple
 
+from main.plan.CplexModel import CplexSolver
 from main.plan.Planner import Planner
 from utils.demand.Request import Request
 
@@ -11,6 +12,7 @@ from utils.helper.Timer import TimeImpl
 from utils.network.Bus import Bus
 from utils.network.Line import Line
 from utils.network.Stop import Stop
+from utils.plan.Route import Route
 
 
 def check_on_route(split: SplitRequest, search_loc: Stop):
@@ -131,27 +133,22 @@ class EventBasedMILP(Planner):
     def __init__(self, bus_list: List[Bus], network_graph: LineGraph):
         super().__init__(bus_list, network_graph)
         self.event_graph = None
-        self.line_max: Dict[Line, int] = {y: 0 for y in {x.line for x in self.bus_list}}
-        for bus in self.bus_list:
-            if self.line_max[bus.line] < bus.capacity:
-                self.line_max[bus.line] = bus.capacity
 
     # checks all permutations recursively, only one request per id, always check if feasible, if not stop
     def get_permutations(self, event_user: SplitRequest, cand_list: List[SplitRequest], curr_permut: Set[SplitRequest],
                          index: int, event_type: bool) -> Set[Event]:
         # if max length exceeded stop
         return_set: Set[Event] = set()
-        if len(curr_permut) < self.line_max[event_user.line]:
 
-            # check for next candidate to be distinct from previous ones
-            id_set: Set[int] = {x.id for x in curr_permut}
-            while len(cand_list) > index:
-                # if no one left stop
-                if not cand_list[index].id in id_set:
+        # check for next candidate to be distinct from previous ones
+        id_set: Set[int] = {x.id for x in curr_permut}
+        while len(cand_list) > index:
+            # if no one left stop
+            if not cand_list[index].id in id_set:
 
-                    # add candidate to current_permutation, check for feasibility
-                    next_permut = curr_permut | {cand_list[index]}
-
+                # add candidate to current_permutation, check for feasibility
+                next_permut = curr_permut | {cand_list[index]}
+                if (sum(x.number_of_passengers for x in next_permut) + event_user.number_of_passengers) <= event_user.line.capacity:
                     earl_time, lat_time = Helper.get_event_window(event_user, next_permut, event_type)
                     if earl_time is not None and lat_time is not None:
                         event: Event
@@ -160,7 +157,7 @@ class EventBasedMILP(Planner):
                         else:
                             event = DropOffEvent(event_user, next_permut, earl_time, lat_time)
                         return_set |= {event} | self.get_permutations(event_user, cand_list, next_permut, index + 1, event_type)
-                index += 1
+            index += 1
         return return_set
 
     def walk_route(self, req: Request, bus_user_dict: Dict[Bus, Set[Request]], next_bus_locations: Dict[Bus, Stop]):
@@ -239,11 +236,16 @@ class EventBasedMILP(Planner):
                         agg_cand_dict[event_user][1]), set(), 0, False)
 
             self.event_graph.add_events(permutations)
-            self.event_graph.check_connectivity(idle_event)
             # unnecessary all nodes should be valid by construction, could use for debugging though
+            self.event_graph.check_connectivity(idle_event)
         print("soooo??")
 
         # build lin. model
+        cplex_model: CplexSolver = CplexSolver(self.event_graph, all_active_requests, self.bus_list)
+
         # solve model
+        cplex_model.solve_model()
+
         # convert to route solution
-        pass
+        self.curr_routes = cplex_model.convert_to_plan()
+

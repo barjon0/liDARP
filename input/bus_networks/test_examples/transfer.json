@@ -9,8 +9,8 @@
     {"id": 6, "coordinates": [8,3]}
   ],
   "lines": [
-    {"id": 0, "stops": [0,1,2,3], "depot": [4,2]},
-    {"id": 1, "stops": [4,2,5,6], "depot": [4,2]}
+    {"id": 0, "stops": [0,1,2,3], "depot": [4,2], "startTime": "07:00:00", "endTime": "19:00:00"},
+    {"id": 1, "stops": [4,2,5,6], "depot": [4,2], "startTime": "07:00:00", "endTime": "19:00:00"}
   ],
   "busses": [
     {"id": 0, "line": 0},

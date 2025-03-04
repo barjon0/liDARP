@@ -10,6 +10,7 @@ from utils.helper.PriorityQueue import PriorityQueue
 from utils.helper.Timer import TimeImpl
 from utils.network.Stop import Stop
 from utils.network.Line import Line
+from utils.plan.RouteStop import RouteStop
 
 
 def calc_distance(stop1: Stop, stop2: Stop) -> float:
@@ -30,7 +31,7 @@ def check_dir(split_req: SplitRequest):
 
 
 # need to calculate number of transfers as well
-def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph: LineGraph):
+def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph: LineGraph, number_of_passengers: int):
     # dijkstra alg.
     pred_dict: Dict[Stop, (
         Set[Line], int)] = {}  # contains poss. lines request is in at stop v and number of transfers at this point
@@ -38,7 +39,8 @@ def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph:
         pred_dict[stop] = (set(), 0)
 
     pick_lines: frozenset = frozenset(
-        [edge.line for edge in network_graph.get_edges_out(pick_up_location)])
+        [edge.line for edge in network_graph.get_edges_out(pick_up_location) if
+         edge.line.capacity >= number_of_passengers])
     pred_dict[pick_up_location] = (pick_lines, 1)
 
     queue: PriorityQueue = PriorityQueue(network_graph.get_nodes())
@@ -47,31 +49,32 @@ def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph:
     while (not queue.is_empty()) and (queue.get_priority(drop_off_location) is not None):
         v, dist_v = queue.pop()
         for adj_edge in network_graph.get_edges_out(v):
-            u = adj_edge.v2
-            dist_u = queue.get_priority(u)
-            if dist_u is not None:
-                # need to know in which lines u could be here -> if way to v is another line -> transfer time
-                numb_transfer: int = pred_dict[v][1]
-                alter: float = dist_v + adj_edge.duration
+            if adj_edge.line.capacity >= number_of_passengers:
+                u = adj_edge.v2
+                dist_u = queue.get_priority(u)
+                if dist_u is not None:
+                    # need to know in which lines u could be here -> if way to v is another line -> transfer time
+                    numb_transfer: int = pred_dict[v][1]
+                    alter: float = dist_v + adj_edge.duration
 
-                if adj_edge.line not in pred_dict[v][0]:
-                    alter += Global.TRANSFER_MINUTES
-                    numb_transfer += 1
+                    if adj_edge.line not in pred_dict[v][0]:
+                        alter += Global.TRANSFER_MINUTES
+                        numb_transfer += 1
 
-                # if equal decide by number of transfers
-                if alter == dist_u and numb_transfer == pred_dict[u][1]:
-                    pred_dict[u][0].add(adj_edge.line)
-                elif alter < dist_u or (alter == dist_u and numb_transfer < pred_dict[u][1]):
-                    queue.replace(u, alter)
-                    pred_dict[u] = ({adj_edge.line}, numb_transfer)
+                    # if equal decide by number of transfers
+                    if alter == dist_u and numb_transfer == pred_dict[u][1]:
+                        pred_dict[u][0].add(adj_edge.line)
+                    elif alter < dist_u or (alter == dist_u and numb_transfer < pred_dict[u][1]):
+                        queue.replace(u, alter)
+                        pred_dict[u] = ({adj_edge.line}, numb_transfer)
 
     fast_time, transfers = queue.final_vals[drop_off_location], pred_dict[drop_off_location][1]
     return fast_time, transfers
 
 
-def complete_request(pick_up: Stop, drop_off: Stop, network_graph: LineGraph):
+def complete_request(pick_up: Stop, drop_off: Stop, network_graph: LineGraph, number_of_passengers: int):
     # calculate fastest time -> account for transfers -> plug into max_delay_equation, return corresp. km
-    fastest_time, numb_transfers = calc_fastest(pick_up, drop_off, network_graph)
+    fastest_time, numb_transfers = calc_fastest(pick_up, drop_off, network_graph, number_of_passengers)
     assert fastest_time is not math.inf
     long_delay = eval(Global.MAX_DELAY_EQUATION, {"math": math, "x": fastest_time})
     km_planned = Timer.conv_time_to_dist(fastest_time - (numb_transfers * Global.TRANSFER_MINUTES))
@@ -82,7 +85,7 @@ def complete_request(pick_up: Stop, drop_off: Stop, network_graph: LineGraph):
 # check if hop-count exceeded -> add current stop to all open lists -> if not source: recursive call to neighbours
 def rec_dfs(last_line: LineEdge, curr_minutes: float, curr_transfers: int, prev_visited: Set[Stop],
             curr_open: List[List[SplitRequest]], look_up_dict: Dict[LineEdge, SplitRequest], max_time: float,
-            max_hop_count: int, target: Stop, network_graph: LineGraph):
+            max_hop_count: int, target: Stop, network_graph: LineGraph, number_of_passengers: int):
     if curr_transfers > max_hop_count or curr_minutes > max_time:
         return []
     else:
@@ -94,13 +97,14 @@ def rec_dfs(last_line: LineEdge, curr_minutes: float, curr_transfers: int, prev_
             prev_visited.add(last_line.v1)
             # find all successors of v2, that are not yet explored and operate on new line
             successors: List[LineEdge] = [x for x in network_graph.get_edges_out(last_line.v2)
-                                          if (x.v2 not in prev_visited) and (x.line != last_line.line)]
+                                          if (x.v2 not in prev_visited) and (x.line != last_line.line) and (
+                                                  x.line.capacity >= number_of_passengers)]
 
             combined_poss: List[List[SplitRequest]] = []
             for suc in successors:
                 combined_poss += rec_dfs(suc, curr_minutes + Global.TRANSFER_MINUTES + suc.duration, curr_transfers + 1,
                                          prev_visited.copy(), [x.copy() for x in curr_open], look_up_dict, max_time,
-                                         max_hop_count, target, network_graph)
+                                         max_hop_count, target, network_graph, number_of_passengers)
 
             return combined_poss
 
@@ -152,7 +156,8 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
     # fill dict of LineEdge to SplitRequest for all aggregated routes in network
     agg_edges_dict: Dict[LineEdge, SplitRequest] = {}
     for agg_edge in network_graph.get_edges():
-        agg_edges_dict[agg_edge] = SplitRequest(request.id, agg_edge.v1, agg_edge.v2, agg_edge.line)
+        agg_edges_dict[agg_edge] = SplitRequest(request, agg_edge.v1, agg_edge.v2, agg_edge.line,
+                                                request.number_of_passengers)
 
     # now do dfs with dictionary of split-requests, account for max. number of transfers and time constraints
     max_time: float = (request.latest_arr_time - request.earl_start_time).get_in_minutes() - Global.TIME_WINDOW
@@ -162,10 +167,11 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
     start_tupels: List[LineEdge] = network_graph.get_edges_out(request.pick_up_location)
 
     for start_sub_line in start_tupels:
-        result += rec_dfs(start_sub_line, Global.TRANSFER_MINUTES + start_sub_line.duration, 1,
-                          {request.pick_up_location},
-                          [[]], agg_edges_dict, max_time, request.numb_transfer + Global.NUMBER_OF_EXTRA_TRANSFERS,
-                          request.drop_off_location, network_graph)
+        if start_sub_line.line.capacity >= request.number_of_passengers:
+            result += rec_dfs(start_sub_line, Global.TRANSFER_MINUTES + start_sub_line.duration, 1,
+                              {request.pick_up_location},
+                              [[]], agg_edges_dict, max_time, request.numb_transfer + Global.NUMBER_OF_EXTRA_TRANSFERS,
+                              request.drop_off_location, network_graph, request.number_of_passengers)
 
     return result
 
@@ -269,3 +275,19 @@ def check_overlap(interval_1_start: TimeImpl, interval_1_end: TimeImpl, interval
         return False
     else:
         return True
+
+
+def calc_total_network_size(line_set: Set[Line]):
+    total_sum = 0
+    for line in line_set:
+        for i in range(len(line.stops) - 1):
+            total_sum += calc_distance(line.stops[i], line.stops[i + 1])
+
+    return total_sum
+
+
+def insert_sorted(waiting_bus_stops: List[RouteStop], r_stop: RouteStop):
+    i = 0
+    while i < len(waiting_bus_stops) and waiting_bus_stops[i].depart_time < r_stop.depart_time:
+        i += 1
+    waiting_bus_stops.insert(i, r_stop)

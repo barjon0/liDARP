@@ -21,11 +21,23 @@ class Executor:
         self.routes.sort(key=lambda x: x.bus.id)
 
     def check_plan(self, done_r_stops: List[RouteStop], final_time: TimeImpl = None):
-
-        waiting_bus_events: List[RouteStop] = []
+        waiting_bus_stops: List[RouteStop] = []
         curr_time: TimeImpl
         for r_stop in done_r_stops:
+            print(r_stop)
             curr_time = r_stop.arriv_time
+
+            for wait_stops in waiting_bus_stops:
+                if wait_stops.depart_time <= curr_time:
+                    for u_picked in wait_stops.pick_up:
+                        this_stop = self.user_locations.pop(u_picked)
+                        if this_stop is not wait_stops.stop:
+                            ValueError("Missmatch between expected pick-up stop and actual")
+                        self.passengers[wait_stops.bus].add(u_picked)
+                        if wait_stops.stop is u_picked.pick_up_location:
+                            u_picked.act_start_time = wait_stops.depart_time
+                    waiting_bus_stops.remove(wait_stops)
+
             self.bus_locations[r_stop.bus] = r_stop.stop
 
             for u_dropped in r_stop.drop_off:
@@ -38,22 +50,11 @@ class Executor:
                 else:
                     u_dropped.act_end_time = r_stop.arriv_time
 
-            for wait_event in waiting_bus_events:
-                if wait_event.depart_time <= curr_time:
-                    for u_picked in wait_event.pick_up:
-                        this_stop = self.user_locations.pop(u_picked)
-                        if this_stop is not wait_event.stop:
-                            ValueError("Missmatch between expected pick-up stop and actual")
-                        self.passengers[wait_event.bus].add(u_picked)
-                        if wait_event.stop is u_picked.pick_up_location:
-                            u_picked.act_start_time = wait_event.depart_time
-                waiting_bus_events.remove(wait_event)
-
-            waiting_bus_events.append(r_stop)
+            Helper.insert_sorted(waiting_bus_stops, r_stop)
 
         # for waiting_bus_events change depart_time and empty pick-up set if not finished
         if final_time is not None:
-            for wait_event in waiting_bus_events:
+            for wait_event in waiting_bus_stops:
                 if wait_event.depart_time <= final_time:
                     for u_picked in wait_event.pick_up:
                         this_stop = self.user_locations.pop(u_picked)
@@ -66,7 +67,7 @@ class Executor:
                     wait_event.depart_time = final_time
                     wait_event.pick_up.clear()
         else:
-            for wait_event in waiting_bus_events:
+            for wait_event in waiting_bus_stops:
                 for u_picked in wait_event.pick_up:
                     this_stop = self.user_locations.pop(u_picked)
                     if this_stop is not wait_event.stop:
@@ -81,7 +82,7 @@ class Executor:
         # else: look through curr. route until just before time_next -> copy to result -> update dictionaries
         self.user_locations |= {x: x.pick_up_location for x in new_requests if x.route_int is not None}
 
-        curr_routes.sort(key=lambda x: x.id)
+        curr_routes.sort(key=lambda x: x.bus.id)
         if time_next is None:
             for route_count in range(len(curr_routes)):
                 self.routes[route_count].stop_list += curr_routes[route_count].stop_list
