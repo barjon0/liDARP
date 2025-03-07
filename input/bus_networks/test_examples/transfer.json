@@ -4,7 +4,7 @@
     {"id": 1, "coordinates": [2,2]},
     {"id": 2, "coordinates": [4,1]},
     {"id": 3, "coordinates": [6,0]},
-    {"id": 4, "coordinates": [3,0]},
+    {"id": 4, "coordinates": [2,0]},
     {"id": 5, "coordinates": [6,2]},
     {"id": 6, "coordinates": [8,3]}
   ],

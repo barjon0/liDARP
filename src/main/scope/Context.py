@@ -2,7 +2,7 @@ from typing import Set, Dict
 
 from main.plan.Planner import Planner
 from main.scope.Executor import Executor
-from utils.demand.Request import Request
+from utils.demand.AbstractRequest import Request
 from utils.helper.Timer import TimeImpl
 
 

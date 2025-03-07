@@ -2,9 +2,7 @@ from typing import List, Set, Dict, Tuple
 
 from main.plan.CplexModel import CplexSolver
 from main.plan.Planner import Planner
-from utils.demand.Request import Request
-
-from utils.demand.SplitRequest import SplitRequest
+from utils.demand.AbstractRequest import SplitRequest, Request
 from utils.helper import Helper
 from utils.helper.EventGraph import EventGraph, Event, PickUpEvent, DropOffEvent, IdleEvent
 from utils.helper.LineGraph import LineGraph
@@ -12,7 +10,6 @@ from utils.helper.Timer import TimeImpl
 from utils.network.Bus import Bus
 from utils.network.Line import Line
 from utils.network.Stop import Stop
-from utils.plan.Route import Route
 
 
 def check_on_route(split: SplitRequest, search_loc: Stop):
@@ -97,8 +94,9 @@ def sweep_line_time(splits_in_dir: Set[SplitRequest]):
             queue[req.latest_arr_time] = [set(), set(), set(), {req}]
 
     event_points = sorted(queue.keys())
-    status_tuple: Tuple[Set[SplitRequest], Set[SplitRequest]] = (set(), set())      # tuple of sets of split_requests for both interval types
-    total_status: Set[SplitRequest] = set()         # all open intervals [earliest_start, latest_finish]
+    status_tuple: Tuple[Set[SplitRequest], Set[SplitRequest]] = (
+    set(), set())  # tuple of sets of split_requests for both interval types
+    total_status: Set[SplitRequest] = set()  # all open intervals [earliest_start, latest_finish]
     output_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = {x: (set(), set()) for x in
                                                                                     splits_in_dir}
 
@@ -137,18 +135,21 @@ class EventBasedMILP(Planner):
     # checks all permutations recursively, only one request per id, always check if feasible, if not stop
     def get_permutations(self, event_user: SplitRequest, cand_list: List[SplitRequest], curr_permut: Set[SplitRequest],
                          index: int, event_type: bool) -> Set[Event]:
-        # if max length exceeded stop
-        return_set: Set[Event] = set()
 
+        return_set: Set[Event] = set()
         # check for next candidate to be distinct from previous ones
         id_set: Set[int] = {x.id for x in curr_permut}
+
+        # check if candidates left
         while len(cand_list) > index:
             # if no one left stop
             if not cand_list[index].id in id_set:
 
                 # add candidate to current_permutation, check for feasibility
                 next_permut = curr_permut | {cand_list[index]}
-                if (sum(x.number_of_passengers for x in next_permut) + event_user.number_of_passengers) <= event_user.line.capacity:
+                # if max length exceeded stop
+                if (sum(x.number_of_passengers for x in
+                        next_permut) + event_user.number_of_passengers) <= event_user.line.capacity:
                     earl_time, lat_time = Helper.get_event_window(event_user, next_permut, event_type)
                     if earl_time is not None and lat_time is not None:
                         event: Event
@@ -156,7 +157,8 @@ class EventBasedMILP(Planner):
                             event = PickUpEvent(event_user, next_permut, earl_time, lat_time)
                         else:
                             event = DropOffEvent(event_user, next_permut, earl_time, lat_time)
-                        return_set |= {event} | self.get_permutations(event_user, cand_list, next_permut, index + 1, event_type)
+                        return_set |= {event} | self.get_permutations(event_user, cand_list, next_permut, index + 1,
+                                                                      event_type)
             index += 1
         return return_set
 
@@ -196,6 +198,7 @@ class EventBasedMILP(Planner):
         for req in all_active_requests:
             for opt in req.split_requests.keys():
                 all_follow_splits |= set(req.split_requests[opt])
+                print(f"Request {req.id} has option {opt}")
 
         curr_passengers: Set[Request] = set().union(*bus_user_dict.values())
         all_active_requests |= curr_passengers
@@ -209,7 +212,9 @@ class EventBasedMILP(Planner):
             direction = Helper.check_dir(split_req)
             line_dir_dict[split_req.line][direction].add(split_req)
 
-        for line in line_dir_dict.keys():
+        sort_lines = sorted(line_dir_dict.keys(), key=lambda l: l.id)
+
+        for line in sort_lines:
             permutations: Set[Event] = set()
             idle_event = IdleEvent(line)
             permutations.add(idle_event)
@@ -217,28 +222,55 @@ class EventBasedMILP(Planner):
             for direction in range(2):
                 # direction 0 is normal, 1 is reverse
                 # local_cand_map generate pick_up candidates and drop off candidates
+                users_here = line_dir_dict[line][direction]
+                # print(f"Users for this one is: {users_here}")
                 local_cand_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = \
-                    sweep_line_local(line_dir_dict[line][direction], line, direction)
+                    sweep_line_local(users_here, line, direction)
+
+                # number_of_candidate_pairs_local = sum(len(local_cand_dict[x][0]) + len(local_cand_dict[x][1]) for x in local_cand_dict.keys())
+                # print(f"number of local candidate pairs for line {line.id} and direction {direction}: {number_of_candidate_pairs_local}")
 
                 time_cand_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = sweep_line_time(
                     line_dir_dict[line][direction])
+
+                # number_of_candidate_pairs_time = sum(len(time_cand_dict[x][0]) + len(time_cand_dict[x][1]) for x in time_cand_dict.keys())
+                # print(f"number of time candidate pairs for line {line.id} and direction {direction}: {number_of_candidate_pairs_time}")
 
                 agg_cand_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = {}
                 for split_req in local_cand_dict.keys():
                     agg_cand_dict[split_req] = (local_cand_dict[split_req][0] & time_cand_dict[split_req][0],
                                                 local_cand_dict[split_req][1] & time_cand_dict[split_req][1])
 
+                # number_of_candidate_pairs = sum(len(agg_cand_dict[x][0]) + len(agg_cand_dict[x][1]) for x in agg_cand_dict.keys())
+                # print(f"number of candidate pairs for line {line.id} and direction {direction}: {number_of_candidate_pairs}")
+
                 # make permutations (check if some split_requests already started)
+                # user_sorted: List[SplitRequest] = sorted(agg_cand_dict.keys(), key=lambda user: user.split_id)
+
                 for event_user in agg_cand_dict.keys():
-                    permutations |= {PickUpEvent(event_user, set(), event_user.earl_start_time, event_user.latest_start_time)} | self.get_permutations(event_user, list(
-                        agg_cand_dict[event_user][0]), set(), 0, True)
-                    permutations |= {DropOffEvent(event_user, set(), event_user.earl_arr_time, event_user.latest_arr_time)} | self.get_permutations(event_user, list(
-                        agg_cand_dict[event_user][1]), set(), 0, False)
+                    permutations |= {
+                        PickUpEvent(event_user, set(), event_user.earl_start_time, event_user.latest_start_time)}
+
+                    hold = self.get_permutations(event_user, list(agg_cand_dict[event_user][0]), set(), 0, True)
+                    # if len(hold) > 0:
+                    #    print(f"for split {event_user.split_id} of user {event_user.id} there were {len(hold)} pick-up combis found")
+                    permutations |= hold
+
+                    permutations |= {
+                        DropOffEvent(event_user, set(), event_user.earl_arr_time, event_user.latest_arr_time)}
+                    hold = self.get_permutations(event_user, list(agg_cand_dict[event_user][1]), set(), 0, False)
+                    # if len(hold) > 0:
+                    #    print(f"for split {event_user.split_id} of user {event_user.id} there were {len(hold)} drop-off combis found")
+                    permutations |= hold
+
+            print(f"Number of permutations: {len(permutations)}")
 
             self.event_graph.add_events(permutations)
             # unnecessary all nodes should be valid by construction, could use for debugging though
             self.event_graph.check_connectivity(idle_event)
         print("soooo??")
+
+        print(self.event_graph.data_in_string())
 
         # build lin. model
         cplex_model: CplexSolver = CplexSolver(self.event_graph, all_active_requests, self.bus_list)
@@ -248,4 +280,3 @@ class EventBasedMILP(Planner):
 
         # convert to route solution
         self.curr_routes = cplex_model.convert_to_plan()
-

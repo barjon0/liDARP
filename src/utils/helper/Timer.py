@@ -1,5 +1,6 @@
 import math
 from dataclasses import dataclass
+from typing import List
 
 import Global
 
@@ -7,18 +8,16 @@ import Global
 def convert_2_time(duration_min: float):
     hours: int = math.floor(duration_min / 60)
 
-    minutes: int = math.floor(duration_min) % 60
-    if round(duration_min) > math.floor(duration_min):
-        if minutes == 59:
-            minutes = 0
-            hours += 1
-        else:
-            minutes += 1
+    minutes_left = duration_min - (60 * hours)
+    minutes = math.floor(minutes_left)
+
+    seconds_left = minutes_left - minutes
+    seconds = math.floor(seconds_left * 60)
 
     if hours > 23:
         ValueError("time overflow occured")
 
-    return TimeImpl(hours, minutes)
+    return TimeImpl(hours, minutes, seconds)
 
 
 def calc_time(distance: float) -> float:
@@ -73,7 +72,12 @@ class TimeImpl:
         return convert_2_time(self.get_in_minutes() - other.get_in_minutes())
 
     def __str__(self):
-        return f"{self.hour}:{self.minute}:{self.second}"
+        string_list: List[str] = [str(self.hour), str(self.minute), str(self.second)]
+        for i in range(3):
+            if len(string_list[i]) == 1:
+                string_list[i] = "0" + string_list[i]
+
+        return f"{string_list[0]}:{string_list[1]}:{string_list[2]}"
 
     def __lt__(self, other):
         assert isinstance(other, TimeImpl)

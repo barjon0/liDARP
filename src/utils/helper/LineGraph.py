@@ -31,8 +31,10 @@ class LineGraph:
     def __init__(self, network: List[Bus]):
         self.all_lines: Set[Line] = {bus.line for bus in network}
         self._graph_dict: Dict[Stop, Tuple[Set[LineEdge], Set[LineEdge]]] = {}
+        self.transfer_nodes: Set[Stop] = set()
         self._make_graph()
 
+        self.temp_edges: Set[LineEdge] = None
         self.all_stops: Set[Stop] = set().union(*[set(x.stops) for x in self.all_lines])
 
     def get_nodes(self):
@@ -57,54 +59,60 @@ class LineGraph:
 
             # make lineEdge for all pairs of a line
             for transfer_a in transfer_stops_a:
+                if transfer_a not in self._graph_dict:
+                    self._graph_dict[transfer_a] = (set(), set())
+
                 for other_stop in (transfer_stops_a - {transfer_a}):
                     duration: float = Timer.calc_time(Helper.calc_distance(transfer_a, other_stop))
                     edge_to = LineEdge(transfer_a, other_stop, line_a, duration)
-                    if transfer_a in self._graph_dict:
-                        self._graph_dict[transfer_a][1].add(edge_to)
-                    else:
-                        self._graph_dict[transfer_a] = (set(), {edge_to})
+                    self._graph_dict[transfer_a][1].add(edge_to)
 
                     if other_stop in self._graph_dict:
                         self._graph_dict[other_stop][0].add(edge_to)
                     else:
-                        self._graph_dict[transfer_a] = ({edge_to}, set())
+                        self._graph_dict[other_stop] = ({edge_to}, set())
+
+            self.transfer_nodes |= transfer_stops_a
 
     def add_request(self, search_pick_up: Stop, search_drop_off: Stop):
         from utils.helper import Helper
+        self.temp_edges = []
         # add request stops to graph
 
         if search_pick_up not in self._graph_dict:
+            # look for the single line of pick-up spot
             pick_up_line = next((x for x in self.all_lines if search_pick_up in x.stops))
+            # get all intersection of this line
             transfer_stops: Set[Stop] = self.get_nodes() & set(pick_up_line.stops)
+
             self._graph_dict[search_pick_up] = (set(), set())
             for stop in transfer_stops:
                 duration: float = Timer.calc_time(Helper.calc_distance(search_pick_up, stop))
                 edge_to = LineEdge(search_pick_up, stop, pick_up_line, duration)
                 self._graph_dict[search_pick_up][1].add(edge_to)
                 self._graph_dict[stop][0].add(edge_to)
+                self.temp_edges += [edge_to]
 
         if search_drop_off not in self._graph_dict:
             drop_off_line = next((x for x in self.all_lines if search_drop_off in x.stops))
             transfer_stops: Set[Stop] = self.get_nodes() & set(drop_off_line.stops)
+
             self._graph_dict[search_drop_off] = (set(), set())
             for stop in transfer_stops:
                 duration: float = Timer.calc_time(Helper.calc_distance(stop, search_drop_off))
                 edge_from = LineEdge(stop, search_drop_off, drop_off_line, duration)
                 self._graph_dict[search_drop_off][0].add(edge_from)
                 self._graph_dict[stop][1].add(edge_from)
+                self.temp_edges += [edge_from]
 
-    def delete_request(self, old_pick_up: Stop, old_drop_off: Stop):
+    def delete_request(self, pick_up: Stop, drop_off: Stop):
         # delete edges and nodes of old request when finished
-        pick_up_lines: Set[Line] = {x for x in self.all_lines if old_pick_up in x.stops}
-        drop_off_lines: Set[Line] = {x for x in self.all_lines if old_drop_off in x.stops}
+        for edge in self.temp_edges:
+            self._graph_dict[edge.v1][1].remove(edge)
+            self._graph_dict[edge.v2][0].remove(edge)
 
-        if len(pick_up_lines) == 1:
-            for edge in self._graph_dict[old_pick_up][1]:
-                self._graph_dict[edge.v2][0].remove(edge)
-            del self._graph_dict[old_pick_up]
+        for node in {pick_up, drop_off}:
+            if not (node in self.transfer_nodes) and len(self._graph_dict[node][0]) == 0 and len(self._graph_dict[node][1]) == 0:
+                del self._graph_dict[node]
 
-        if len(drop_off_lines) == 1:
-            for edge in self._graph_dict[old_drop_off][0]:
-                self._graph_dict[edge.v1][1].remove(edge)
-            del self._graph_dict[old_drop_off]
+        self.temp_edges = None

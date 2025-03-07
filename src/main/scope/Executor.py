@@ -1,6 +1,6 @@
 from typing import Set, Dict, List
 
-from utils.demand.Request import Request
+from utils.demand.AbstractRequest import Request
 from utils.helper import Helper
 from utils.helper.Timer import TimeImpl
 from utils.network.Bus import Bus
@@ -27,22 +27,27 @@ class Executor:
             print(r_stop)
             curr_time = r_stop.arriv_time
 
-            for wait_stops in waiting_bus_stops:
-                if wait_stops.depart_time <= curr_time:
-                    for u_picked in wait_stops.pick_up:
+            still_waiting = []
+            for wait_stop in waiting_bus_stops:
+                if wait_stop.depart_time <= curr_time:
+                    for u_picked in wait_stop.pick_up:
+                        if u_picked not in self.user_locations.keys():
+                            raise ValueError(f"User {u_picked.id} not marked as waiting")
                         this_stop = self.user_locations.pop(u_picked)
-                        if this_stop is not wait_stops.stop:
-                            ValueError("Missmatch between expected pick-up stop and actual")
-                        self.passengers[wait_stops.bus].add(u_picked)
-                        if wait_stops.stop is u_picked.pick_up_location:
-                            u_picked.act_start_time = wait_stops.depart_time
-                    waiting_bus_stops.remove(wait_stops)
+                        if this_stop is not wait_stop.stop:
+                            raise ValueError("Missmatch between expected pick-up stop and actual")
+                        self.passengers[wait_stop.bus].add(u_picked)
+                        if wait_stop.stop is u_picked.pick_up_location:
+                            u_picked.act_start_time = wait_stop.depart_time
+                else:
+                    still_waiting.append(wait_stop)
 
+            waiting_bus_stops = still_waiting
             self.bus_locations[r_stop.bus] = r_stop.stop
 
             for u_dropped in r_stop.drop_off:
                 if u_dropped not in self.passengers[r_stop.bus]:
-                    ValueError("Person not supposed to be in bus")
+                    raise ValueError(f"User {u_dropped.id} not supposed to be in bus")
                 else:
                     self.passengers[r_stop.bus].remove(u_dropped)
                 if r_stop.stop is not u_dropped.drop_off_location:
@@ -59,7 +64,7 @@ class Executor:
                     for u_picked in wait_event.pick_up:
                         this_stop = self.user_locations.pop(u_picked)
                         if this_stop is not wait_event.stop:
-                            ValueError("Missmatch between expected pick-up stop and actual")
+                            raise ValueError("Missmatch between expected pick-up stop and actual")
                         self.passengers[wait_event.bus].add(u_picked)
                         if u_picked.pick_up_location is wait_event.stop:
                             u_picked.act_start_time = wait_event.depart_time

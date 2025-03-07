@@ -1,6 +1,6 @@
 from typing import List, Dict, Set
 
-from utils.demand.Request import Request
+from utils.demand.AbstractRequest import Request
 from utils.helper.LineGraph import LineGraph
 from utils.network.Bus import Bus
 from utils.network.Stop import Stop

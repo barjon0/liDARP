@@ -1,7 +1,7 @@
 from typing import List, Set, Tuple, Dict
 
 import Global
-from utils.demand.SplitRequest import SplitRequest
+from utils.demand.AbstractRequest import SplitRequest
 from utils.helper import Timer, Helper
 from utils.helper.Timer import TimeImpl
 from utils.network.Line import Line
@@ -95,6 +95,13 @@ class EventGraph:
         self.request_dict: Dict[SplitRequest, Tuple[Set[Event], Set[Event]]] = {}
         self.edge_dict: Dict[Event, Tuple[List[Event], List[Event]]] = {}
 
+    def data_in_string(self):
+        number_of_edges = sum(len(self.edge_dict[x][1]) for x in self.edge_dict.keys())
+        nodes = len(self.edge_dict.keys())
+        split_requests = len(self.request_dict.keys())
+
+        return f"Number of split_requests: {split_requests}; Number of nodes: {nodes}; Number of edges: {number_of_edges}."
+
     def get_edges_in(self, event: Event):
         return self.edge_dict[event][0]
 
@@ -164,7 +171,8 @@ class EventGraph:
             for event_before in same_pass_events_pred:
                 for event_after in same_pass_events_succ:
                     duration = Timer.calc_time(Helper.calc_distance(event_before.location, event_after.location))
+                    service_time = Global.TRANSFER_MINUTES * int(bool(duration))
                     if (event_before is not event_after) and event_before.earl_depart.add_minutes(
-                            duration + Global.TRANSFER_MINUTES) <= event_after.lat_depart:
+                            duration + service_time) <= event_after.lat_depart:
                         self.edge_dict[event_after][0].append(event_before)
                         self.edge_dict[event_before][1].append(event_after)

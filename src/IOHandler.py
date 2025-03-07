@@ -2,15 +2,14 @@ import csv
 import json
 import sys
 import os
-from typing import Set, List, Dict, Tuple
+from typing import List, Dict, Tuple, Set
 
 import Global
 from main.plan.EventBasedMILP import EventBasedMILP
 from main.plan.Planner import Planner
 from main.scope.Context import Context, Static
 from main.scope.Executor import Executor
-from utils.demand.Request import Request
-from utils.demand.SplitRequest import SplitRequest
+from utils.demand.AbstractRequest import Request, SplitRequest
 from utils.helper import Helper, Timer
 from utils.helper.LineGraph import LineGraph
 from utils.helper.Timer import TimeImpl
@@ -162,6 +161,7 @@ def fill_time_windows(request: Request, split_req_list: List[SplitRequest]):
 
 
 def main(path_2_config: str):
+
     with open(path_2_config, 'r') as config_file:
         config: dict = json.load(config_file)
 
@@ -215,7 +215,7 @@ def find_output_path(base_output_path: str):
     return result_path
 
 
-def create_output(requests: Set[Request], plans: Set[Route], base_output_path: str):
+def create_output(requests: Set[Request], plans: List[Route], base_output_path: str):
     # for each bus create csv of stops(number, position, arriv_time, depart_time, pick_up_users, drop-off_users)
     # for each user create csv of (id, list of buses, list of transfer points, waiting_time, ride_time)
     # system efficency = km booked(only direct km) / km travelled
@@ -232,9 +232,7 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
     bus_overall_km_dict: Dict[Bus, float] = dict.fromkeys(buses, 0)
     bus_empty_km_dict: Dict[Bus, float] = dict.fromkeys(buses, 0)
     req_km_dict: Dict[Request, float] = dict.fromkeys(requests, 0)
-    request_stop_dict: Dict[Request, List[int]] = {}
-    request_wait_time_dict: Dict[Request, TimeImpl] = {}
-    request_buses_dict: Dict[Request, List[int]] = {x: [] for x in requests}
+    request_stop_dict: Dict[Request, List[Tuple[TimeImpl, int, int]]] = {}
 
     csv_out_bus: Dict[Bus, List[List[str]]] = {
         x: [["number", "stop ID", "arrival time", "departure time", "pick up users", "drop of users"]] for x in
@@ -244,21 +242,21 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
     for req in requests:
         if req.act_start_time is not None:
             km_booked += req.km_planned
-            request_stop_dict[req] = [req.pick_up_location.id]
+            request_stop_dict[req] = [(req.act_start_time, req.pick_up_location.id, -1)]
         else:
             numb_denied += 1
 
     for plan in plans:
         if len(plan.stop_list) > 0:
-            prev_event = plan.stop_list[0]
-            passengers: Set[Request] = set(prev_event.pick_up)
+            prev_stop = plan.stop_list[0]
+            passengers: Set[Request] = set(prev_stop.pick_up)
             bus_overall_km_dict[plan.bus] = 0
-            csv_out_bus[plan.bus].append([1] + prev_event.to_output())
+            csv_out_bus[plan.bus].append([1] + prev_stop.to_output())
             counter = 2
 
             for curr_stop in plan.stop_list[1:]:
                 csv_out_bus[plan.bus].append([counter] + curr_stop.to_output())
-                km_between = Helper.calc_distance(prev_event.stop, curr_stop.stop)
+                km_between = Helper.calc_distance(prev_stop.stop, curr_stop.stop)
                 bus_overall_km_dict[plan.bus] += km_between
                 if len(passengers) == 0:
                     bus_empty_km_dict[plan.bus] += km_between
@@ -267,36 +265,37 @@ def create_output(requests: Set[Request], plans: Set[Route], base_output_path: s
                         req_km_dict[user] += km_between
 
                 for u_dropped in curr_stop.drop_off:
-                    request_stop_dict[u_dropped].append(curr_stop.stop.id)
-                    request_buses_dict[u_dropped].append(curr_stop.bus.id)
+                    request_stop_dict[u_dropped].append(
+                        (curr_stop.arriv_time, curr_stop.stop.id, curr_stop.bus.id))
 
                 passengers = (passengers - curr_stop.drop_off) | curr_stop.pick_up
+                prev_stop = curr_stop
                 counter += 1
 
     for req in requests:
         if req.act_start_time is not None:
-            request_wait_time_dict[req] = (req.act_end_time - req.act_start_time).sub_minutes(
-                Timer.calc_time(req_km_dict[req]))
+            wait_time = req.act_end_time.get_in_minutes() - (req.act_start_time.get_in_minutes() - Global.TRANSFER_MINUTES) - Timer.calc_time(req_km_dict[req])
+            request_stop_dict[req].sort(key=lambda x: x[0])
             csv_out_req.append(
-                [str(req), str(request_buses_dict[req]), str(request_stop_dict[req]),
-                 str(request_wait_time_dict[req]), Timer.calc_time(req_km_dict[req])])
+                [str(req), str([x[2] for x in request_stop_dict[req][1:]]), str([x[1] for x in request_stop_dict[req]]),
+                 str(round(wait_time, 1)), round(Timer.calc_time(req_km_dict[req]), 3)])
         else:
             csv_out_req.append([str(req), "-", "-", "-", "-"])
 
     overall_numbers: List[List[str]] = []
-    km_travel_total = sum(bus_overall_km_dict.values())
-    km_empty_total = sum(bus_empty_km_dict.values())
-    km_used_total = km_travel_total - km_empty_total
+    km_travel_total = round(sum(bus_overall_km_dict.values()), 3)
+    km_empty_total = round(sum(bus_empty_km_dict.values()), 3)
+    km_used_total = round(km_travel_total - km_empty_total, 3)
     overall_numbers += [[f"km travelled total: {km_travel_total}"], [f"empty km total: {km_empty_total}"],
                         [f"used km total: {km_used_total}"]]
 
     acc_km_req = sum(req_km_dict.values())
 
     try:
-        overall_numbers.append([f"system efficiency: {km_booked / km_travel_total}"])
-        overall_numbers.append([f"deviation factor: {acc_km_req / km_booked}"])
-        overall_numbers.append([f"vehicle utilization: {acc_km_req / km_used_total}"])
-        overall_numbers.append([f"empty km share: {km_empty_total / km_travel_total}"])
+        overall_numbers.append([f"system efficiency: {round(km_booked / km_travel_total, 3)}"])
+        overall_numbers.append([f"deviation factor: {round(acc_km_req / km_booked, 3)}"])
+        overall_numbers.append([f"vehicle utilization: {round(acc_km_req / km_used_total, 3)}"])
+        overall_numbers.append([f"empty km share: {round(km_empty_total / km_travel_total, 3)}"])
     except ZeroDivisionError:
         pass
 

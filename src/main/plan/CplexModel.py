@@ -1,13 +1,11 @@
 from typing import Set, List, Tuple, Dict
 
 import Global
-from utils.demand.Request import Request
-from utils.demand.SplitRequest import SplitRequest
+from utils.demand.AbstractRequest import Request, SplitRequest
 from utils.helper import Helper, Timer
 from utils.helper.EventGraph import EventGraph, IdleEvent, PickUpEvent
 import sys
 
-from utils.helper.Timer import TimeImpl
 from utils.network.Bus import Bus
 from utils.network.Line import Line
 from utils.plan.Route import Route
@@ -200,28 +198,34 @@ class CplexSolver():
                 if (start_split, end_split) not in found_tuples:
                     found_tuples |= {(start_split, end_split)}
                     var_names = [f"B_{start_split.split_id}+"]
+                    max_ride_time = (req.latest_arr_time - req.latest_start_time).get_in_minutes()
+                    print(f"Request {req.id} has max_ride_time: {max_ride_time}")
                     # max ride time constraint
+
                     model.linear_constraints.add(
                         lin_expr=[cplex.SparsePair(ind=var_names + [f"B_{end_split.split_id}-"], val=[-1, 1])],
                         senses=["L"],
-                        rhs=[(req.latest_arr_time - req.latest_start_time).get_in_minutes()]
+                        rhs=[max_ride_time]
                     )
 
                     if start_split not in found_starts:
                         found_starts |= {start_split}
+                        low_bound = req.earl_start_time.get_in_minutes() + Global.TRANSFER_MINUTES
                         # start time window constraint >=
                         model.linear_constraints.add(
                             lin_expr=[cplex.SparsePair(ind=var_names, val=[1])],
                             senses=["G"],
-                            rhs=[req.earl_start_time.get_in_minutes()]
+                            rhs=[low_bound]
                         )
 
                         # start time window <=
+                        up_bound = req.latest_start_time.get_in_minutes() + Global.TRANSFER_MINUTES
                         model.linear_constraints.add(
                             lin_expr=[cplex.SparsePair(ind=var_names, val=[1])],
                             senses=["L"],
-                            rhs=[req.latest_start_time.get_in_minutes()]
+                            rhs=[up_bound]
                         )
+
 
                 # add timing constraint for subsequent route stops
                 for i in range(0, len(req.split_requests[key]) - 1):
@@ -231,7 +235,7 @@ class CplexSolver():
                     model.linear_constraints.add(
                         lin_expr=[cplex.SparsePair(ind=var_names, val=[-1, 1])],
                         senses=["G"],
-                        rhs=[Global.TRANSFER_MINUTES]
+                        rhs=[0]
                     )
 
             # z variables for request sum to p_r
@@ -246,14 +250,23 @@ class CplexSolver():
         return model
 
     def solve_model(self):
-        self.model.parameters.mip.strategy.heuristicfreq.set(-1)  # Disable heuristic frequency
-        self.model.parameters.mip.strategy.probe.set(-1)  # Disable probing
+        # self.model.parameters.mip.strategy.heuristicfreq.set(-1) # Disable heuristic frequency
+        # self.model.parameters.mip.strategy.probe.set(-1)  # Disable probing
+        # self.model.parameters.randomseed.set(2)
+        # self.model.write("model.lp")
         self.model.solve()
         print("Objective Value: " + str(self.model.solution.get_objective_value()))
 
     def convert_to_plan(self):
         # for every bus -> start at idle_event and walk along path
         # -> (build RouteStop, check when finished!!, add users to pick-up and drop-off and times)
+        request_order = list(self.requests)
+        solution_ints = self.model.solution.get_values([f"q_{x.id}" for x in request_order])
+        combi = []
+        for i in range(len(request_order)):
+            combi.append(f"Request: {request_order[i].id} has value {solution_ints[i]}")
+        print(combi)
+
         line_set: Set[Line] = {x.line for x in self.buses}
         line_bus_dict: Dict[Line, List[Bus]] = {x: [y for y in self.buses if y.line == x] for x in line_set}
         all_plans: List[Route] = []
@@ -321,9 +334,9 @@ class CplexSolver():
 
                                     curr_route_stop.depart_time = Timer.create_time_object(time_var)
                             else:
-                                print("Another unnecessary event")
+                                print(f"Another unnecessary event; Removed Event: {next_event}")
                         else:
-                            print("There was a unnecessary event")
+                            print(f"no option selected, unnecessary event removed: {next_event}")
 
                         edge_vals = self.model.solution.get_values(
                             [f"x_{next_event.id},{x.id}" for x in self.event_graph.edge_dict[next_event][1]])

@@ -2,8 +2,7 @@ import math
 from typing import Dict, Set, List
 
 import Global
-from utils.demand.Request import Request
-from utils.demand.SplitRequest import SplitRequest
+from utils.demand.AbstractRequest import SplitRequest, Request
 from utils.helper import Timer
 from utils.helper.LineGraph import LineGraph, LineEdge
 from utils.helper.PriorityQueue import PriorityQueue
