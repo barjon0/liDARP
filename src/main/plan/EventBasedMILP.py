@@ -1,5 +1,7 @@
+import time
 from typing import List, Set, Dict, Tuple
 
+import Global
 from main.plan.CplexModel import CplexSolver
 from main.plan.Planner import Planner
 from utils.demand.AbstractRequest import SplitRequest, Request
@@ -48,6 +50,7 @@ def sweep_line_local(splits_in_dir: Set[SplitRequest], line: Line, direction: in
 
         status_set -= queue[stop][1]
         for req_del in queue[stop][1]:
+            # when deleting a request -> all remaining as candidate for drop-off
             for other_del in queue[stop][1]:
                 if req_del.id < other_del.id:
                     output_dict[req_del][1].add(other_del)
@@ -55,6 +58,7 @@ def sweep_line_local(splits_in_dir: Set[SplitRequest], line: Line, direction: in
                 if other.id != req_del.id:
                     output_dict[req_del][1].add(other)
 
+        # when adding a request -> all remainining actives are candidate for pick-up
         for req_in in queue[stop][0]:
             for other_new in queue[stop][0]:
                 if req_in.id < other_new.id:
@@ -198,7 +202,6 @@ class EventBasedMILP(Planner):
         for req in all_active_requests:
             for opt in req.split_requests.keys():
                 all_follow_splits |= set(req.split_requests[opt])
-                print(f"Request {req.id} has option {opt}")
 
         curr_passengers: Set[Request] = set().union(*bus_user_dict.values())
         all_active_requests |= curr_passengers
@@ -263,20 +266,25 @@ class EventBasedMILP(Planner):
                     #    print(f"for split {event_user.split_id} of user {event_user.id} there were {len(hold)} drop-off combis found")
                     permutations |= hold
 
-            print(f"Number of permutations: {len(permutations)}")
-
             self.event_graph.add_events(permutations)
             # unnecessary all nodes should be valid by construction, could use for debugging though
             self.event_graph.check_connectivity(idle_event)
-        print("soooo??")
 
+        print(f"Created EventGraph after {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds")
         print(self.event_graph.data_in_string())
+        Global.COMPUTATION_START_TIME = time.time()
 
         # build lin. model
         cplex_model: CplexSolver = CplexSolver(self.event_graph, all_active_requests, self.bus_list)
 
+        print(f"Build the Cplex-Model after {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds")
+        Global.COMPUTATION_START_TIME = time.time()
+
         # solve model
         cplex_model.solve_model()
+
+        print(f"Solved model after {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds")
+        Global.COMPUTATION_START_TIME = time.time()
 
         # convert to route solution
         self.curr_routes = cplex_model.convert_to_plan()

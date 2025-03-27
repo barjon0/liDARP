@@ -24,7 +24,6 @@ class Executor:
         waiting_bus_stops: List[RouteStop] = []
         curr_time: TimeImpl
         for r_stop in done_r_stops:
-            print(r_stop)
             curr_time = r_stop.arriv_time
 
             still_waiting = []

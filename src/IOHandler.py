@@ -2,6 +2,9 @@ import csv
 import json
 import sys
 import os
+import time
+
+import matplotlib.pyplot as plt
 from typing import List, Dict, Tuple, Set
 
 import Global
@@ -52,8 +55,8 @@ def read_requests(request_path, network_graph: LineGraph):
 
             network_graph.add_request(pick_up, drop_off)
 
-            print(req_id)
-            delay_time, numb_transfers, km_planned = Helper.complete_request(pick_up, drop_off, network_graph, int(row[5]))
+            delay_time, numb_transfers, km_planned = Helper.complete_request(pick_up, drop_off, network_graph,
+                                                                             int(row[5]))
             request = Request(int(row[0]), int(row[5]), pick_up, drop_off,
                               earl_time, earl_time + delay_time,
                               Timer.conv_string_2_Time(row[1]), numb_transfers, km_planned)
@@ -101,11 +104,15 @@ def read_bus_network(network_path: str):
             stops_of_line.append(stops[stop_id])
         if Global.CAPACITY_PER_LINE is None:
             if "capacity" in line:
-                lines[line["id"]] = Line(line["id"], stops_of_line, depot_stop, int(line["capacity"]), Timer.conv_string_2_Time(line["startTime"]), Timer.conv_string_2_Time(line["endTime"]))
+                lines[line["id"]] = Line(line["id"], stops_of_line, depot_stop, int(line["capacity"]),
+                                         Timer.conv_string_2_Time(line["startTime"]),
+                                         Timer.conv_string_2_Time(line["endTime"]))
             else:
                 ValueError("No Global Capacity or individual given")
         else:
-            lines[line["id"]] = Line(line["id"], stops_of_line, depot_stop, Global.CAPACITY_PER_LINE, Timer.conv_string_2_Time(line["startTime"]), Timer.conv_string_2_Time(line["endTime"]))
+            lines[line["id"]] = Line(line["id"], stops_of_line, depot_stop, Global.CAPACITY_PER_LINE,
+                                     Timer.conv_string_2_Time(line["startTime"]),
+                                     Timer.conv_string_2_Time(line["endTime"]))
 
     busses: List[Bus] = []
     bus_list = network_dict.get('busses')
@@ -165,6 +172,7 @@ def main(path_2_config: str):
     with open(path_2_config, 'r') as config_file:
         config: dict = json.load(config_file)
 
+    Global.COMPUTATION_START_TIME = time.time()
     Global.AVERAGE_KMH = config.get('averageKmH')
     Global.KM_PER_UNIT = config.get('KmPerUnit')
     Global.COST_PER_KM = config.get('costPerKM')
@@ -189,9 +197,16 @@ def main(path_2_config: str):
     plann: Planner = find_planner(solver_str, network, network_graph)
     context: Context = find_context(context_str, requests, Executor(network, requests), plann)
 
+    print(f"Done with reading in; finding shortest routes and all route options after {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds.")
+    Global.COMPUTATION_START_TIME = time.time()
+
+    output_network({x.line for x in network})
+
     context.start_context()
 
     create_output(requests, context.executor.routes, output_path)
+
+    print(f"Converted and validated plan; generated output in {round(time.time() - Global.COMPUTATION_START_TIME)} seconds")
 
 
 def find_output_path(base_output_path: str):
@@ -213,6 +228,30 @@ def find_output_path(base_output_path: str):
     os.makedirs(result_path)
 
     return result_path
+
+
+def output_network(lines: Set[Line]):
+    # create pyplot of stops and lines
+    all_stop_cords: Set[Stop] = set()
+    for line in lines:
+        all_stop_cords |= set(line.stops)
+    all_stop_cords_list = list(all_stop_cords)
+
+    x = [i.coordinates[0] for i in all_stop_cords_list]
+    y = [i.coordinates[1] for i in all_stop_cords_list]
+
+    plt.plot(x, y, 'ro')
+
+    color_set = ['red', 'green', 'blue', 'yellow', 'black', 'purple', 'pink', 'brown'] * 3
+    color_iter = iter(color_set)
+    for line in lines:
+        color_name = next(color_iter)
+        for i in range(len(line.stops) - 1):
+            x1, y1 = line.stops[i].coordinates
+            x2, y2 = line.stops[i+1].coordinates
+            plt.plot([x1, x2], [y1, y2], marker='x', color=color_name)
+
+    plt.show()
 
 
 def create_output(requests: Set[Request], plans: List[Route], base_output_path: str):
@@ -274,7 +313,9 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
 
     for req in requests:
         if req.act_start_time is not None:
-            wait_time = req.act_end_time.get_in_minutes() - (req.act_start_time.get_in_minutes() - Global.TRANSFER_MINUTES) - Timer.calc_time(req_km_dict[req])
+            wait_time = req.act_end_time.get_in_minutes() - (
+                        req.act_start_time.get_in_minutes() - Global.TRANSFER_MINUTES) - Timer.calc_time(
+                req_km_dict[req])
             request_stop_dict[req].sort(key=lambda x: x[0])
             csv_out_req.append(
                 [str(req), str([x[2] for x in request_stop_dict[req][1:]]), str([x[1] for x in request_stop_dict[req]]),

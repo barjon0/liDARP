@@ -1,6 +1,6 @@
 {
   "pathRequestFile": "../input/requests/test_requests/circle.csv",
-  "pathNetworkFile": "../input/bus_networks/test_examples/circle.json",
+  "pathNetworkFile": "../input/bus_networks/real_networks/sw-geo_full.json",
   "pathCPLEX": "C:/Program Files/IBM/ILOG/CPLEX_Studio2211/cplex/python/3.9/x64_win64/cplex",
   "outputPath": "../output",
   "context": "static",
