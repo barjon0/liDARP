@@ -31,7 +31,8 @@ def check_on_route(split: SplitRequest, search_loc: Stop):
 
 
 def sweep_line_local(splits_in_dir: Set[SplitRequest], line: Line, direction: int):
-    # extract event points(make queue with insert and delete objects) -> go trough queue -> update status_dict -> build output from keys
+    # extract event points(make queue with insert and delete objects) -> go trough queue
+    # -> update status_dict -> build output from keys
     queue: Dict[Stop, Tuple[Set[SplitRequest], Set[SplitRequest]]] = {x: (set(), set()) for x in line.stops}
 
     for split_req in splits_in_dir:
@@ -210,7 +211,8 @@ class EventBasedMILP(Planner):
             all_follow_splits |= self.walk_route(req, bus_user_dict, next_bus_locations)
 
         # build candidate sets for lines and directions
-        line_dir_dict: Dict[Line, Tuple[Set[SplitRequest]]] = {x: [set(), set()] for x in self.network_graph.all_lines}
+        line_dir_dict: Dict[Line, Tuple[Set[SplitRequest], Set[SplitRequest]]] = \
+            {x: (set(), set()) for x in self.network_graph.all_lines}
         for split_req in all_follow_splits:
             direction = Helper.check_dir(split_req)
             line_dir_dict[split_req.line][direction].add(split_req)
@@ -270,20 +272,23 @@ class EventBasedMILP(Planner):
             # unnecessary all nodes should be valid by construction, could use for debugging though
             self.event_graph.check_connectivity(idle_event)
 
-        print(f"Created EventGraph after {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds")
+        Global.COMPUTATION_TIME_BUILDING = round(time.time() - Global.COMPUTATION_START_TIME, 4)
+        print(f"Created EventGraph after {Global.COMPUTATION_TIME_BUILDING} seconds")
         print(self.event_graph.data_in_string())
         Global.COMPUTATION_START_TIME = time.time()
 
         # build lin. model
         cplex_model: CplexSolver = CplexSolver(self.event_graph, all_active_requests, self.bus_list)
 
-        print(f"Build the Cplex-Model after {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds")
+        Global.COMPUTATION_TIME_BUILDING_CPLEX = round(time.time() - Global.COMPUTATION_START_TIME, 4)
+        print(f"Build the Cplex-Model after {Global.COMPUTATION_TIME_BUILDING_CPLEX} seconds")
         Global.COMPUTATION_START_TIME = time.time()
 
         # solve model
         cplex_model.solve_model()
 
-        print(f"Solved model after {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds")
+        Global.COMPUTATION_TIME_SOLVING = round(time.time() - Global.COMPUTATION_START_TIME, 4)
+        print(f"Solved model after {Global.COMPUTATION_TIME_SOLVING} seconds")
         Global.COMPUTATION_START_TIME = time.time()
 
         # convert to route solution

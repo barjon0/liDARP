@@ -4,7 +4,7 @@ import sys
 import os
 import time
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from typing import List, Dict, Tuple, Set
 
 import Global
@@ -197,16 +197,17 @@ def main(path_2_config: str):
     plann: Planner = find_planner(solver_str, network, network_graph)
     context: Context = find_context(context_str, requests, Executor(network, requests), plann)
 
-    print(f"Done with reading in; finding shortest routes and all route options after {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds.")
+    Global.COMPUTATION_TIME_READING = round(time.time() - Global.COMPUTATION_START_TIME, 4)
+    print(f"Done with reading in; finding shortest routes and all route options after {Global.COMPUTATION_TIME_READING} seconds.")
     Global.COMPUTATION_START_TIME = time.time()
 
-    output_network({x.line for x in network})
+    # output_network({x.line for x in network})
 
     context.start_context()
 
     create_output(requests, context.executor.routes, output_path)
 
-    print(f"Converted and validated plan; generated output in {round(time.time() - Global.COMPUTATION_START_TIME)} seconds")
+    print(f"Converted and validated plan; generated output in {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds")
 
 
 def find_output_path(base_output_path: str):
@@ -229,7 +230,7 @@ def find_output_path(base_output_path: str):
 
     return result_path
 
-
+'''
 def output_network(lines: Set[Line]):
     # create pyplot of stops and lines
     all_stop_cords: Set[Stop] = set()
@@ -252,6 +253,7 @@ def output_network(lines: Set[Line]):
             plt.plot([x1, x2], [y1, y2], marker='x', color=color_name)
 
     plt.show()
+    '''
 
 
 def create_output(requests: Set[Request], plans: List[Route], base_output_path: str):
@@ -329,7 +331,6 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
     km_used_total = round(km_travel_total - km_empty_total, 3)
     overall_numbers += [[f"km travelled total: {km_travel_total}"], [f"empty km total: {km_empty_total}"],
                         [f"used km total: {km_used_total}"]]
-
     acc_km_req = sum(req_km_dict.values())
 
     try:
@@ -339,6 +340,12 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         overall_numbers.append([f"empty km share: {round(km_empty_total / km_travel_total, 3)}"])
     except ZeroDivisionError:
         pass
+
+
+    overall_numbers.append([f"computation time for reading in: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_READING))}"])
+    overall_numbers.append([f"computation time for building event graph: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_BUILDING))}"])
+    overall_numbers.append([f"computation time for building model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_BUILDING_CPLEX))}"])
+    overall_numbers.append([f"computation time for solving model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_SOLVING))}"])
 
     path_to_output = find_output_path(base_output_path)
 

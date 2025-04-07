@@ -1,0 +1,11 @@
+km travelled total: 890.858
+empty km total: 496.283
+used km total: 394.575
+system efficiency: 0.613
+deviation factor: 1.074
+vehicle utilization: 1.485
+empty km share: 0.557
+computation time for reading in: 00:00:00
+computation time for building event graph: 00:00:00
+computation time for building model: 00:00:00
+computation time for solving model: 00:09:20
