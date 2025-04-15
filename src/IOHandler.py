@@ -4,7 +4,7 @@ import sys
 import os
 import time
 
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 from typing import List, Dict, Tuple, Set
 
 import Global
@@ -201,7 +201,7 @@ def main(path_2_config: str):
     print(f"Done with reading in; finding shortest routes and all route options after {Global.COMPUTATION_TIME_READING} seconds.")
     Global.COMPUTATION_START_TIME = time.time()
 
-    # output_network({x.line for x in network})
+    output_network({x.line for x in network})
 
     context.start_context()
 
@@ -230,7 +230,7 @@ def find_output_path(base_output_path: str):
 
     return result_path
 
-'''
+
 def output_network(lines: Set[Line]):
     # create pyplot of stops and lines
     all_stop_cords: Set[Stop] = set()
@@ -253,7 +253,6 @@ def output_network(lines: Set[Line]):
             plt.plot([x1, x2], [y1, y2], marker='x', color=color_name)
 
     plt.show()
-    '''
 
 
 def create_output(requests: Set[Request], plans: List[Route], base_output_path: str):

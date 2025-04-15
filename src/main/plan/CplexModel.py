@@ -1,16 +1,19 @@
 from typing import Set, List, Tuple, Dict
 
 import Global
+from main.plan.TimeConstraints import RelativeConstraints
 from utils.demand.AbstractRequest import Request, SplitRequest
 from utils.helper import Helper, Timer
 from utils.helper.EventGraph import EventGraph, IdleEvent, PickUpEvent
+import sys
+
 from utils.network.Bus import Bus
 from utils.network.Line import Line
 from utils.plan.Route import Route
 from utils.plan.RouteStop import RouteStop
 
 
-class CplexSolver:
+class CplexSolver():
     def __init__(self, event_graph: EventGraph, requests: Set[Request], bus_list: List[Bus]):
         self.event_graph = event_graph
         self.requests = requests
@@ -18,11 +21,14 @@ class CplexSolver:
         self.model = self.build_model()
 
     def build_model(self):
+        sys.path.append(Global.CPLEX_PATH)
         import cplex
 
         model = cplex.Cplex()
         # add variables
         # q_r for every request
+        time_const_maker = RelativeConstraints()
+
         model.variables.add(names=[f'q_{x.id}' for x in self.requests],
                             types=[model.variables.type.binary] * len(self.requests))
 
@@ -31,12 +37,11 @@ class CplexSolver:
             for key in req.split_requests.keys():
                 model.variables.add(names=[f'z_{req.id},{key}'], types=[model.variables.type.binary])
 
-        # B_e for every split request (shared B_e variables) -> time of departure for split_request (drop-off/pick-up) -> added upper/lower bound explicit
+        # B_e for every split request (shared B_e variables) -> time of departure for split_request (drop-off/pick-up)
         for key in self.event_graph.request_dict:
-            model.variables.add(names=[f'B_{key.split_id}+'], lb=[key.earl_start_time.get_in_minutes() + Global.TRANSFER_MINUTES],
-                                ub=[key.latest_start_time.get_in_minutes() + Global.TRANSFER_MINUTES])
-            model.variables.add(names=[f'B_{key.split_id}-'], lb=[key.earl_arr_time.get_in_minutes() + Global.TRANSFER_MINUTES],
-                                ub=[key.latest_arr_time.get_in_minutes() + Global.TRANSFER_MINUTES])
+            variable_args = time_const_maker.create_variables(key)
+            model.variables.add(**variable_args[0])
+            model.variables.add(**variable_args[1])
 
         # 2 * B_e per bus / not needed can actually infer from solution
         # for bus in self.buses:
@@ -47,11 +52,10 @@ class CplexSolver:
             for second in self.event_graph.edge_dict[first][1]:
                 model.variables.add(names=[f'x_{first.id},{second.id}'], types=[model.variables.type.binary])
 
-        lines = {x.line for x in self.buses}
         # set objective function: minimize distance covered but add penalty if request not accepted
-        '''
+        lines = {x.line for x in self.buses}
         model.objective.set_sense(model.objective.sense.minimize)
-        penalty = int(2 * Helper.calc_total_network_size(lines)) * len(self.requests) * len(self.buses)**2
+        penalty = int(2 * Helper.calc_total_network_size(lines))
         obj_pairs = [(f"q_{x.id}", -penalty) for x in self.requests]
         for first_event in self.event_graph.edge_dict.keys():
             for second_event in self.event_graph.edge_dict[first_event][1]:
@@ -59,32 +63,12 @@ class CplexSolver:
                                Helper.calc_distance(first_event.location, second_event.location))]
 
         model.objective.set_linear(obj_pairs)
-        '''
-
-        model.multiobj.set_num(2)
-
-        # Objective 1 (priority 1)
-        obj_pairs1 = [(f"q_{x.id}", -1) for x in self.requests]
-        model.multiobj.set_linear(0, obj_pairs1)
-        model.multiobj.set_priority(0, 2)
-
-        # Objective 2 (priority 2)
-        obj_pairs = []
-        for first_event in self.event_graph.edge_dict.keys():
-            for second_event in self.event_graph.edge_dict[first_event][1]:
-                obj_pairs += [(f"x_{first_event.id},{second_event.id}",
-                               Helper.calc_distance(first_event.location, second_event.location))]
-        model.multiobj.set_linear(1, obj_pairs)
-        model.multiobj.set_priority(1, 1)
-
-        model.multiobj.set_sense(model.objective.sense.minimize)
 
         # for all events: sum out - sum in = 0
         for key in self.event_graph.edge_dict.keys():
-            var_names = [f'x_{x.id},{key.id}' for x in self.event_graph.edge_dict[key][0]] + [f'x_{key.id},{x.id}' for x
-                                                                                              in
-                                                                                              self.event_graph.edge_dict[
-                                                                                                  key][1]]
+            var_names = [f'x_{x.id},{key.id}' for x in self.event_graph.edge_dict[key][0]] \
+                        + [f'x_{key.id},{x.id}' for x in self.event_graph.edge_dict[key][1]]
+
             coeffs = [1] * len(self.event_graph.edge_dict[key][0]) + [-1] * len(self.event_graph.edge_dict[key][1])
             model.linear_constraints.add(
                 lin_expr=[cplex.SparsePair(ind=var_names, val=coeffs)],
@@ -141,7 +125,7 @@ class CplexSolver:
                 model.linear_constraints.add(
                     lin_expr=[cplex.SparsePair(ind=var_dict[found_split] + var_names, val=coeffs)],
                     senses=["L"],
-                    rhs=[line.end_time.get_in_minutes()]
+                    rhs=[line.end_time.get_in_minutes() - time_const_maker.add_value(found_split, False)]
                 )
 
             # check outgoing edges / start at idle_event
@@ -158,13 +142,12 @@ class CplexSolver:
                 model.linear_constraints.add(
                     lin_expr=[cplex.SparsePair(ind=var_dict[found_split] + var_names, val=coeffs)],
                     senses=["L"],
-                    rhs=[-line.start_time.get_in_minutes() - Global.TRANSFER_MINUTES]
+                    rhs=[-line.start_time.get_in_minutes() - Global.TRANSFER_MINUTES + time_const_maker.add_value(found_split, True)]
                 )
 
         # make timing constraints for all subsequent splits in event_graph...(for doc look into thesis)
         # TODO: what is a good big-M ?
         for split_req in self.event_graph.request_dict.keys():
-            big_m = int(split_req.line.end_time.get_in_minutes())
 
             for i in {0, 1}:
                 var_dict: Dict[
@@ -186,27 +169,36 @@ class CplexSolver:
                 for found_tuple in var_dict.keys():
                     other_split, type_bool = found_tuple
                     var_names = []
+                    bool_first: bool
+                    bool_second: bool
                     if i == 0:
                         split_first_location = split_req.pick_up_location
                         var_names += [f"B_{split_req.split_id}+"]
+                        bool_first = True
                     else:
                         split_first_location = split_req.drop_off_location
                         var_names += [f"B_{split_req.split_id}-"]
+                        bool_first = False
 
                     if type_bool:
                         split_sec_location = other_split.pick_up_location
                         var_names += [f"B_{other_split.split_id}+"]
+                        bool_second = True
                     else:
                         split_sec_location = other_split.drop_off_location
                         var_names += [f"B_{other_split.split_id}-"]
+                        bool_second = False
 
                     duration = Timer.calc_time(Helper.calc_distance(split_first_location, split_sec_location))
+                    big_m = time_const_maker.get_big_m(split_req, bool_first, duration)
                     coeffs = [big_m] * len(var_dict[found_tuple]) + [1] + [-1]
+
                     service_time = Global.TRANSFER_MINUTES * (int(bool(duration)))
                     model.linear_constraints.add(
                         lin_expr=[cplex.SparsePair(ind=var_dict[found_tuple] + var_names, val=coeffs)],
                         senses=["L"],
-                        rhs=[-service_time + big_m - duration]
+                        rhs=[-service_time + big_m - duration - time_const_maker.add_value(split_req, bool_first)
+                             + time_const_maker.add_value(other_split, bool_second)]
                     )
 
         for req in self.requests:
@@ -224,7 +216,7 @@ class CplexSolver:
                     model.linear_constraints.add(
                         lin_expr=[cplex.SparsePair(ind=var_names + [f"B_{end_split.split_id}-"], val=[-1, 1])],
                         senses=["L"],
-                        rhs=[max_ride_time]
+                        rhs=[max_ride_time + time_const_maker.add_value(start_split, True) - time_const_maker.add_value(end_split, False)]
                     )
 
                 # add timing constraint for subsequent route stops
@@ -235,7 +227,7 @@ class CplexSolver:
                     model.linear_constraints.add(
                         lin_expr=[cplex.SparsePair(ind=var_names, val=[-1, 1])],
                         senses=["G"],
-                        rhs=[0]
+                        rhs=[time_const_maker.add_value(prev_split, False) - time_const_maker.add_value(sub_split, True)]
                     )
 
             # z variables for request sum to p_r
@@ -253,11 +245,7 @@ class CplexSolver:
         # self.model.parameters.mip.strategy.heuristicfreq.set(-1) # Disable heuristic frequency
         # self.model.parameters.mip.strategy.probe.set(-1)  # Disable probing
         # self.model.parameters.randomseed.set(2)
-        self.model.write("model.lp")
-        var_names = self.model.variables.get_names()
-        var_names_set = set(var_names)
-        if len(var_names) != len(var_names_set):
-            print("There are duplicate variable names")
+        # self.model.write("model.lp")
         self.model.parameters.mip.display.set(1)
         self.model.solve()
         print("Objective Value: " + str(self.model.solution.get_objective_value()))
