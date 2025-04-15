@@ -201,7 +201,7 @@ def main(path_2_config: str):
     print(f"Done with reading in; finding shortest routes and all route options after {Global.COMPUTATION_TIME_READING} seconds.")
     Global.COMPUTATION_START_TIME = time.time()
 
-    output_network({x.line for x in network})
+    #output_network({x.line for x in network})
 
     context.start_context()
 
@@ -312,8 +312,12 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
                 prev_stop = curr_stop
                 counter += 1
 
-    for req in requests:
+    sorted_requests = sorted(requests, key=lambda x: x.id)
+
+    count_accepted = 0
+    for req in sorted_requests:
         if req.act_start_time is not None:
+            count_accepted += 1
             wait_time = req.act_end_time.get_in_minutes() - (
                         req.act_start_time.get_in_minutes() - Global.TRANSFER_MINUTES) - Timer.calc_time(
                 req_km_dict[req])
@@ -337,9 +341,9 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         overall_numbers.append([f"deviation factor: {round(acc_km_req / km_booked, 3)}"])
         overall_numbers.append([f"vehicle utilization: {round(acc_km_req / km_used_total, 3)}"])
         overall_numbers.append([f"empty km share: {round(km_empty_total / km_travel_total, 3)}"])
+        overall_numbers.append([f"Number of Requests accepted: {count_accepted}"])
     except ZeroDivisionError:
         pass
-
 
     overall_numbers.append([f"computation time for reading in: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_READING))}"])
     overall_numbers.append([f"computation time for building event graph: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_BUILDING))}"])
