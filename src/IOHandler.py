@@ -168,7 +168,6 @@ def fill_time_windows(request: Request, split_req_list: List[SplitRequest]):
 
 
 def main(path_2_config: str):
-
     with open(path_2_config, 'r') as config_file:
         config: dict = json.load(config_file)
 
@@ -198,16 +197,18 @@ def main(path_2_config: str):
     context: Context = find_context(context_str, requests, Executor(network, requests), plann)
 
     Global.COMPUTATION_TIME_READING = round(time.time() - Global.COMPUTATION_START_TIME, 4)
-    print(f"Done with reading in; finding shortest routes and all route options after {Global.COMPUTATION_TIME_READING} seconds.")
+    print(
+        f"Done with reading in; finding shortest routes and all route options after {Global.COMPUTATION_TIME_READING} seconds.")
     Global.COMPUTATION_START_TIME = time.time()
 
-    #output_network({x.line for x in network})
+    # output_network({x.line for x in network})
 
     context.start_context()
 
     create_output(requests, context.executor.routes, output_path)
 
-    print(f"Converted and validated plan; generated output in {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds")
+    print(
+        f"Converted and validated plan; generated output in {round(time.time() - Global.COMPUTATION_START_TIME, 4)} seconds")
 
 
 def find_output_path(base_output_path: str):
@@ -249,7 +250,7 @@ def output_network(lines: Set[Line]):
         color_name = next(color_iter)
         for i in range(len(line.stops) - 1):
             x1, y1 = line.stops[i].coordinates
-            x2, y2 = line.stops[i+1].coordinates
+            x2, y2 = line.stops[i + 1].coordinates
             plt.plot([x1, x2], [y1, y2], marker='x', color=color_name)
 
     plt.show()
@@ -266,6 +267,8 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
     # go through plan of each bus, add km to big numbers, fill requests finally, fill dict for bus csv
 
     buses = [x.bus for x in plans]
+    lines = {x.line for x in buses}
+    visualize_plan(plans, lines)
 
     numb_denied = 0
     km_booked = 0
@@ -319,7 +322,7 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         if req.act_start_time is not None:
             count_accepted += 1
             wait_time = req.act_end_time.get_in_minutes() - (
-                        req.act_start_time.get_in_minutes() - Global.TRANSFER_MINUTES) - Timer.calc_time(
+                    req.act_start_time.get_in_minutes() - Global.TRANSFER_MINUTES) - Timer.calc_time(
                 req_km_dict[req])
             request_stop_dict[req].sort(key=lambda x: x[0])
             csv_out_req.append(
@@ -344,11 +347,14 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         overall_numbers.append([f"Number of Requests accepted: {count_accepted}"])
     except ZeroDivisionError:
         pass
-
-    overall_numbers.append([f"computation time for reading in: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_READING))}"])
-    overall_numbers.append([f"computation time for building event graph: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_BUILDING))}"])
-    overall_numbers.append([f"computation time for building model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_BUILDING_CPLEX))}"])
-    overall_numbers.append([f"computation time for solving model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_SOLVING))}"])
+    overall_numbers.append(
+        [f"computation time for reading in: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_READING))}"])
+    overall_numbers.append([
+        f"computation time for building event graph: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_BUILDING))}"])
+    overall_numbers.append([
+        f"computation time for building model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_BUILDING_CPLEX))}"])
+    overall_numbers.append([
+        f"computation time for solving model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_SOLVING))}"])
 
     path_to_output = find_output_path(base_output_path)
 
@@ -364,6 +370,54 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
     with open(f"{path_to_output}/overall_out.csv", mode="w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerows(overall_numbers)
+
+
+def visualize_plan(plan: List[Route], lines: Set[Line]):
+    # count occurence of each segment -> calc overall km and normalize
+    segment_dict: Dict[frozenset[Stop], List[float, Line]] = {}  # dictionary for segment in network, count occurence
+    km_overall: float = 0
+
+    color_set = ['red', 'green', 'blue', 'yellow', 'black', 'purple', 'pink', 'brown'] * 3
+    color_iter = iter(color_set)
+    color_dict: Dict[Line, str] = {}
+    for line in lines:
+        color_dict[line] = next(color_iter)
+
+    for route in plan:
+        for i in range(len(route.stop_list) - 1):
+            stop1 = route.stop_list[i].stop
+            stop2 = route.stop_list[i + 1].stop
+            stop_set: frozenset = frozenset({stop1, stop2})
+            km_needed = Timer.calc_time(Helper.calc_distance(stop1, stop2))
+            km_overall += km_needed
+
+            if stop_set not in segment_dict:
+                segment_dict[stop_set] = [km_needed, route.bus.line]
+            else:
+                segment_dict[stop_set][0] += km_needed
+
+    # build pyplot graph
+    all_stop_cords: Set[Stop] = set()
+    for line in lines:
+        all_stop_cords |= set(line.stops)
+    all_stop_cords_list = list(all_stop_cords)
+
+    x = [i.coordinates[0] for i in all_stop_cords_list]
+    y = [i.coordinates[1] for i in all_stop_cords_list]
+
+    plt.plot(x, y, 'ro')
+
+    max_thickness = 5.0
+    sorted_seg = sorted(list(segment_dict.keys()), key=lambda u: segment_dict[u], reverse=True)
+
+    for stop_set in sorted_seg:
+        stop_set_iter = iter(stop_set)
+        x1, y1 = next(stop_set_iter).coordinates
+        x2, y2 = next(stop_set_iter).coordinates
+        plt.plot([x1, x2], [y1, y2], marker='x', color=color_dict[segment_dict[stop_set][1]],
+                 lw=max_thickness * (segment_dict[stop_set][0] / km_overall))
+
+    plt.show()
 
 
 if __name__ == "__main__":
