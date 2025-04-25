@@ -374,7 +374,7 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
 
 def visualize_plan(plan: List[Route], lines: Set[Line]):
     # count occurence of each segment -> calc overall km and normalize
-    segment_dict: Dict[frozenset[Stop], List[float, Line]] = {}  # dictionary for segment in network, count occurence
+    segment_dict: Dict[frozenset[Stop], list] = {}  # dictionary for segment in network, count occurence
     km_overall: float = 0
 
     color_set = ['red', 'green', 'blue', 'yellow', 'black', 'purple', 'pink', 'brown'] * 3
@@ -408,7 +408,7 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
     plt.plot(x, y, 'ro')
 
     max_thickness = 5.0
-    sorted_seg = sorted(list(segment_dict.keys()), key=lambda u: segment_dict[u], reverse=True)
+    sorted_seg = sorted(list(segment_dict.keys()), key=lambda u: segment_dict[u][0], reverse=True)
 
     for stop_set in sorted_seg:
         stop_set_iter = iter(stop_set)

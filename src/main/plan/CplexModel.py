@@ -16,7 +16,7 @@ class CplexSolver:
         self.event_graph = event_graph
         self.requests = requests
         self.buses = bus_list
-        self.time_const_maker = AbsoluteValueConstraints()
+        self.time_const_maker = RelativeConstraints()
         self.model = self.build_model()
 
 
@@ -53,36 +53,36 @@ class CplexSolver:
 
         lines = {x.line for x in self.buses}
         # set objective function: minimize distance covered but add penalty if request not accepted
+        mulit = False
 
-        model.objective.set_sense(model.objective.sense.minimize)
-        penalty = int(4 * Helper.calc_total_network_size(lines)) * len(self.requests) * len(self.buses)**2
-        obj_pairs = [(f"q_{x.id}", -penalty) for x in self.requests]
-        for first_event in self.event_graph.edge_dict.keys():
-            for second_event in self.event_graph.edge_dict[first_event][1]:
-                obj_pairs += [(f"x_{first_event.id},{second_event.id}",
-                               Helper.calc_distance(first_event.location, second_event.location))]
+        if mulit:
+            model.multiobj.set_num(2)
 
-        model.objective.set_linear(obj_pairs)
+            # Objective 1 (priority 1)
+            obj_pairs1 = [(f"q_{x.id}", -1) for x in self.requests]
+            model.multiobj.set_linear(0, obj_pairs1)
+            model.multiobj.set_priority(0, 2)
 
-        '''
-        model.multiobj.set_num(2)
+            # Objective 2 (priority 2)
+            obj_pairs = []
+            for first_event in self.event_graph.edge_dict.keys():
+                for second_event in self.event_graph.edge_dict[first_event][1]:
+                    obj_pairs += [(f"x_{first_event.id},{second_event.id}",
+                                   Helper.calc_distance(first_event.location, second_event.location))]
+            model.multiobj.set_linear(1, obj_pairs)
+            model.multiobj.set_priority(1, 1)
 
-        # Objective 1 (priority 1)
-        obj_pairs1 = [(f"q_{x.id}", -1) for x in self.requests]
-        model.multiobj.set_linear(0, obj_pairs1)
-        model.multiobj.set_priority(0, 2)
+            model.multiobj.set_sense(model.objective.sense.minimize)
+        else:
+            model.objective.set_sense(model.objective.sense.minimize)
+            penalty = int(4 * Helper.calc_total_network_size(lines)) * len(self.requests) * len(self.buses) ** 2
+            obj_pairs = [(f"q_{x.id}", -penalty) for x in self.requests]
+            for first_event in self.event_graph.edge_dict.keys():
+                for second_event in self.event_graph.edge_dict[first_event][1]:
+                    obj_pairs += [(f"x_{first_event.id},{second_event.id}",
+                                   Helper.calc_distance(first_event.location, second_event.location))]
 
-        # Objective 2 (priority 2)
-        obj_pairs = []
-        for first_event in self.event_graph.edge_dict.keys():
-            for second_event in self.event_graph.edge_dict[first_event][1]:
-                obj_pairs += [(f"x_{first_event.id},{second_event.id}",
-                               Helper.calc_distance(first_event.location, second_event.location))]
-        model.multiobj.set_linear(1, obj_pairs)
-        model.multiobj.set_priority(1, 1)
-
-        model.multiobj.set_sense(model.objective.sense.minimize)
-        '''
+            model.objective.set_linear(obj_pairs)
 
         # for all events: sum out - sum in = 0
         for key in self.event_graph.edge_dict.keys():
@@ -260,18 +260,33 @@ class CplexSolver:
         return model
 
     def solve_model(self):
-        # self.model.parameters.mip.strategy.heuristicfreq.set(-1) # Disable heuristic frequency
-        # self.model.parameters.mip.strategy.probe.set(-1)  # Disable probing
         # self.model.parameters.randomseed.set(2)
         # self.model.write("model.lp")
+
+        self.model.parameters.mip.strategy.nodeselect.set(2) # (check 1-3)select strategy for selecting node for branching
+        self.model.parameters.mip.strategy.variableselect.set(0) #(check 0 /-1 - 4) select on which variable to branch on
+        self.model.parameters.mip.strategy.lbheur.set(1)  # check(0,1)local branching heuristic
+        self.model.parameters.mip.strategy.heuristicfreq.set(0) # (check 0/-1) disable use of heuristic
+        self.model.parameters.mip.cuts.disjunctive.set(0) # check(0 -1 - 3) choose to use more aggressive cuts
+        self.model.parameters.threads.set(31) # specify number of threads
+        self.model.parameters.mip.tolerances.mipgap.set(0.01)
+        self.model.parameters.preprocessing.presolve.set(1) # decide if presolve heuristic is used
+        self.model.parameters.preprocessing.numpass.set(-1) # check(-1, 0) limits number of presolves
         self.model.parameters.workmem.set(27000)  # Up to 27 GB of RAM
-        self.model.parameters.mip.strategy.file.set(1)
+        self.model.parameters.mip.strategy.rinsheur.set(20)  # 50 = apply every 50 nodes
+        self.model.parameters.emphasis.mip.set(2)
+
+        self.model.parameters.mip.cuts.nodecuts.set(3)
+        # self.model.parameters.mip.cuts.flowcovers.set(2)
+        # self.model.parameters.mip.cuts.gomory.set(2)
+        # self.model.parameters.mip.cuts.mircut.set(2)
+        # self.model.parameters.mip.strategy.presolvenode.set(2) # check(0, -1, 3) decides if presolve at node
 
         var_names = self.model.variables.get_names()
         var_names_set = set(var_names)
         if len(var_names) != len(var_names_set):
             print("There are duplicate variable names")
-        self.model.parameters.mip.display.set(1)
+        self.model.parameters.mip.display.set(3)    # set extent of logging
         self.model.solve()
         print("Objective Value: " + str(self.model.solution.get_objective_value()))
 
