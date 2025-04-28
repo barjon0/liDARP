@@ -407,7 +407,7 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
 
     plt.plot(x, y, 'ro')
 
-    max_thickness = 5.0
+    max_thickness = 10.0
     sorted_seg = sorted(list(segment_dict.keys()), key=lambda u: segment_dict[u][0], reverse=True)
 
     for stop_set in sorted_seg:
@@ -417,7 +417,7 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
         plt.plot([x1, x2], [y1, y2], marker='x', color=color_dict[segment_dict[stop_set][1]],
                  lw=max_thickness * (segment_dict[stop_set][0] / km_overall))
 
-    plt.show()
+    plt.savefig('plot.png')
 
 
 if __name__ == "__main__":

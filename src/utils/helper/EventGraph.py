@@ -110,6 +110,13 @@ class EventGraph:
 
     # delete all nodes, that do not have path to and from idle
     def check_connectivity(self, idle_event: IdleEvent):
+        """
+        all_six = {x for x in self.edge_dict.keys() if x.first is not None and x.first.id == 13}
+        print(f"There are {len(all_six)} nodes of id 6")
+        for node in all_six:
+            print(node)
+        """
+
         look_up_dict: Dict[Event, List[bool, bool]] = {x: [False, False] for x in self.edge_dict.keys() if
                                                        not isinstance(x, IdleEvent) and x.first.line == idle_event.line}
         look_up_dict |= {idle_event: [True, True]}
