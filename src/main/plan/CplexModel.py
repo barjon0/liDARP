@@ -266,13 +266,14 @@ class CplexSolver:
         self.model.parameters.mip.tolerances.mipgap.set(0.01)
         self.model.parameters.threads.set(31) # specify number of threads
         self.model.parameters.workmem.set(27000)  # Up to 27 GB of RAM
+        self.model.parameters.timelimit.set(900)
 
         #self.model.parameters.emphasis.mip.set(3)
 
         self.model.parameters.mip.strategy.nodeselect.set(2) # (check 1-3)select strategy for selecting node for branching
         self.model.parameters.mip.strategy.variableselect.set(0) #(check 0 /-1 - 4) select on which variable to branch on
 
-        self.model.parameters.mip.strategy.lbheur.set(1)  # check(0,1)local branching heuristic
+        self.model.parameters.mip.strategy.lbheur.set(0)  # check(0,1)local branching heuristic
         self.model.parameters.mip.strategy.heuristicfreq.set(0) # (check 0/-1) disable use of heuristic
         self.model.parameters.mip.strategy.rinsheur.set(0)  # 50 = apply every 50 nodes
         self.model.parameters.preprocessing.presolve.set(1) # decide if presolve heuristic is used
@@ -281,10 +282,10 @@ class CplexSolver:
 
         #self.model.parameters.mip.cuts.nodecuts.set(3)
         #self.model.parameters.mip.cuts.flowcovers.set(2)
-        self.model.parameters.mip.cuts.gomory.set(2)
-        #self.model.parameters.mip.cuts.mircut.set(-1)
+        #self.model.parameters.mip.cuts.gomory.set(2)
+        #self.model.parameters.mip.cuts.mircut.set(2)
         #self.model.parameters.mip.cuts.implied.set(-1)
-        self.model.parameters.mip.cuts.localimplied.set(-1)
+        #self.model.parameters.mip.cuts.localimplied.set(-1)
         #self.model.parameters.mip.cuts.disjunctive.set(2)  # check(0 -1 - 3) choose to use more aggressive cuts
 
         var_names = self.model.variables.get_names()

@@ -268,7 +268,6 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
 
     buses = [x.bus for x in plans]
     lines = {x.line for x in buses}
-    visualize_plan(plans, lines)
 
     numb_denied = 0
     km_booked = 0
@@ -357,6 +356,8 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         f"computation time for solving model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_SOLVING))}"])
 
     path_to_output = find_output_path(base_output_path)
+    fig = visualize_plan(plans, lines)
+    fig.savefig(f"{path_to_output}/plan.png")
 
     for bus in buses:
         with open(f"{path_to_output}/bus_{bus.id}_out.csv", mode="w", newline="", encoding="utf-8") as file:
@@ -396,6 +397,8 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
             else:
                 segment_dict[stop_set][0] += km_needed
 
+    fig, ax = plt.subplots()
+
     # build pyplot graph
     all_stop_cords: Set[Stop] = set()
     for line in lines:
@@ -405,7 +408,7 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
     x = [i.coordinates[0] for i in all_stop_cords_list]
     y = [i.coordinates[1] for i in all_stop_cords_list]
 
-    plt.plot(x, y, 'ro')
+    ax.plot(x, y, 'ro')
 
     max_thickness = 10.0
     sorted_seg = sorted(list(segment_dict.keys()), key=lambda u: segment_dict[u][0], reverse=True)
@@ -414,10 +417,10 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
         stop_set_iter = iter(stop_set)
         x1, y1 = next(stop_set_iter).coordinates
         x2, y2 = next(stop_set_iter).coordinates
-        plt.plot([x1, x2], [y1, y2], marker='x', color=color_dict[segment_dict[stop_set][1]],
+        ax.plot([x1, x2], [y1, y2], marker='x', color=color_dict[segment_dict[stop_set][1]],
                  lw=max_thickness * (segment_dict[stop_set][0] / km_overall))
 
-    plt.savefig('plot.png')
+    return fig
 
 
 if __name__ == "__main__":
