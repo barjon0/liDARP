@@ -346,6 +346,9 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         overall_numbers.append([f"Number of Requests accepted: {count_accepted}"])
     except ZeroDivisionError:
         pass
+    overall_numbers.append([f"Number of Split Requests: {Global.NUMBER_OF_SPLITS}"])
+    overall_numbers.append([f"Event Graph Nodes: {Global.EVENT_GRAPH_NODES}"])
+    overall_numbers.append([f"Event Graph Edges: {Global.EVENT_GRAPH_EDGES}"])
     overall_numbers.append(
         [f"computation time for reading in: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_READING))}"])
     overall_numbers.append([

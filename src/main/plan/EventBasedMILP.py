@@ -275,6 +275,9 @@ class EventBasedMILP(Planner):
         Global.COMPUTATION_TIME_BUILDING = round(time.time() - Global.COMPUTATION_START_TIME, 4)
         print(f"Created EventGraph after {Global.COMPUTATION_TIME_BUILDING} seconds")
         print(self.event_graph.data_in_string())
+        Global.EVENT_GRAPH_NODES = len(self.event_graph.edge_dict.keys())
+        Global.EVENT_GRAPH_EDGES = self.event_graph.get_number_of_edges()
+        Global.NUMBER_OF_SPLITS = len(self.event_graph.request_dict.keys())
         Global.COMPUTATION_START_TIME = time.time()
 
         # build lin. model

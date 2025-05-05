@@ -96,11 +96,10 @@ class EventGraph:
         self.edge_dict: Dict[Event, Tuple[List[Event], List[Event]]] = {}
 
     def data_in_string(self):
-        number_of_edges = sum(len(self.edge_dict[x][1]) for x in self.edge_dict.keys())
         nodes = len(self.edge_dict.keys())
         split_requests = len(self.request_dict.keys())
 
-        return f"Number of split_requests: {split_requests}; Number of nodes: {nodes}; Number of edges: {number_of_edges}."
+        return f"Number of split_requests: {split_requests}; Number of nodes: {nodes}; Number of edges: {self.get_number_of_edges()}."
 
     def get_edges_in(self, event: Event):
         return self.edge_dict[event][0]
@@ -183,3 +182,6 @@ class EventGraph:
                             duration + service_time) <= event_after.lat_depart:
                         self.edge_dict[event_after][0].append(event_before)
                         self.edge_dict[event_before][1].append(event_after)
+
+    def get_number_of_edges(self):
+        return sum(len(self.edge_dict[x][1]) for x in self.edge_dict.keys())
