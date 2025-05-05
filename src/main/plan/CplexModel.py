@@ -264,7 +264,7 @@ class CplexSolver:
         # self.model.write("model.lp")
 
         self.model.parameters.mip.tolerances.mipgap.set(0.01)
-        self.model.parameters.threads.set(31) # specify number of threads
+        self.model.parameters.threads.set(8) # specify number of threads
         self.model.parameters.workmem.set(27000)  # Up to 27 GB of RAM
         self.model.parameters.timelimit.set(900)
 

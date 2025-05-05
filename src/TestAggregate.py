@@ -14,17 +14,18 @@ def rec_check_folder(folder: Path, val_dict: Dict[int, List[List[str]]]):
         if item.is_dir():
             rec_check_folder(item, val_dict)
         if item.is_file():
-            files += item
+            files.append(item.name)
 
-    bus_files = [x for x in files if re.match("bus_.*", x.name)]
-    overall_file = [x for x in files if x.name == "overall_out.csv"]
-    request_file = [x for x in files if x.name == "requests_out.csv"]
+    bus_files = [x for x in files if re.match("bus_.*", x)]
+    overall_file = [x for x in files if x == "overall_out.csv"]
+    request_file = [x for x in files if x == "requests_out.csv"]
 
     if len(bus_files) > 0 and len(overall_file) > 0 and len(request_file) > 0:
 
         earl_time = TimeImpl(0, 0)
         latest_time = TimeImpl(23, 59)
-        for b_file in bus_files:
+        for b_name in bus_files:
+            b_file = folder / b_name
             b_f = b_file.open("r", encoding="utf-8")
             b_lines = b_f.readlines()
 
@@ -44,14 +45,15 @@ def rec_check_folder(folder: Path, val_dict: Dict[int, List[List[str]]]):
 
         duration_len = (latest_time - earl_time).get_in_minutes() / 60
 
-        o_f = overall_file[0].open("r", encoding="utf-8")
+        o_file = folder / overall_file[0]
+        o_f = o_file.open("r", encoding="utf-8")
         o_lines = o_f.readlines()
         req_cell = [x for x in o_lines if "Number of Requests accepted:" in x]
         number_requests = int(req_cell[0].split(" ")[-1])
 
         density = number_requests / duration_len
         if density in val_dict:
-            val_dict[density] += o_lines
+            val_dict[density].append(o_lines)
         else:
             val_dict[density] = [o_lines]
 
@@ -71,13 +73,16 @@ def aggregate_tests(folder_path: str):
 
     for key in val_dict.keys():
         for val in val_dict[key]:
-            x += key
+            x.append(key)
             interesting_lines = [x for x in val if "system efficiency:" in x]
-            y += int(interesting_lines[0].split(" ")[-1])
+            if len(interesting_lines) == 0:
+                print(val)
+                raise ValueError("Important line not found")
+            y.append(float(interesting_lines[0].split(" ")[-1]))
 
     plt.plot(x, y, 'ro')
 
-    plt.savefig("output/InterestingOutput/agg_results.png")
+    plt.savefig("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput\\aggFiles\\aggPlot.png")
 
 
-aggregate_tests("output/InterestingOutput/markt-karl-lohr")
+aggregate_tests("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput")
