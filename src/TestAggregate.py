@@ -22,8 +22,8 @@ def rec_check_folder(folder: Path, val_dict: Dict[int, List[List[str]]]):
 
     if len(bus_files) > 0 and len(overall_file) > 0 and len(request_file) > 0:
 
-        earl_time = TimeImpl(0, 0)
-        latest_time = TimeImpl(23, 59)
+        earl_time = TimeImpl(23, 59)
+        latest_time = TimeImpl(0, 0)
         for b_name in bus_files:
             b_file = folder / b_name
             b_f = b_file.open("r", encoding="utf-8")
@@ -82,7 +82,7 @@ def aggregate_tests(folder_path: str):
 
     plt.plot(x, y, 'ro')
 
-    plt.savefig("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput\\aggFiles\\aggPlot.png")
+    plt.savefig("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput\\aggFiles\\aggPlotAll.png")
 
 
 aggregate_tests("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput")
