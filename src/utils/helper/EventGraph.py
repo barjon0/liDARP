@@ -1,6 +1,6 @@
 from typing import List, Set, Tuple, Dict
 
-import Global
+from utils import Global
 from utils.demand.AbstractRequest import SplitRequest
 from utils.helper import Timer, Helper
 from utils.helper.Timer import TimeImpl

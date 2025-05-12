@@ -7,7 +7,7 @@ import time
 import matplotlib.pyplot as plt
 from typing import List, Dict, Tuple, Set
 
-import Global
+from utils import Global
 from main.plan.EventBasedMILP import EventBasedMILP
 from main.plan.Planner import Planner
 from main.scope.Context import Context, Static
@@ -279,7 +279,7 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
     csv_out_bus: Dict[Bus, List[List[str]]] = {
         x: [["number", "stop ID", "arrival time", "departure time", "pick up users", "drop of users"]] for x in
         buses}
-    csv_out_req: List[List[str]] = [["user ID", "used buses", "used transfer points", "waiting time", "ride time"]]
+    csv_out_req: List[List[str]] = [["user ID", "used buses", "used transfer points", "waiting time", "ride time", "shortest time possible" ,"number of transfers(for shortest)"]]
 
     for req in requests:
         if req.act_start_time is not None:
@@ -326,9 +326,9 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
             request_stop_dict[req].sort(key=lambda x: x[0])
             csv_out_req.append(
                 [str(req), str([x[2] for x in request_stop_dict[req][1:]]), str([x[1] for x in request_stop_dict[req]]),
-                 str(round(wait_time, 1)), round(Timer.calc_time(req_km_dict[req]), 3)])
+                 str(round(wait_time, 1)), round(Timer.calc_time(req_km_dict[req]), 3), round(Timer.calc_time(req.km_planned), 2), req.numb_transfer])
         else:
-            csv_out_req.append([str(req), "-", "-", "-", "-"])
+            csv_out_req.append([str(req), "-", "-", "-", "-", round(Timer.calc_time(req.km_planned), 2), req.numb_transfer])
 
     overall_numbers: List[List[str]] = []
     km_travel_total = round(sum(bus_overall_km_dict.values()), 3)
@@ -346,6 +346,8 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         overall_numbers.append([f"Number of Requests accepted: {count_accepted}"])
     except ZeroDivisionError:
         pass
+    overall_numbers.append([f"Integrality Gap Number Requests: {Global.INTEGRALITY_GAP_FIRST}"])
+    overall_numbers.append([f"Integrality Gap KM travelled: {Global.INTEGRALITY_GAP_SECOND}"])
     overall_numbers.append([f"Number of Split Requests: {Global.NUMBER_OF_SPLITS}"])
     overall_numbers.append([f"Event Graph Nodes: {Global.EVENT_GRAPH_NODES}"])
     overall_numbers.append([f"Event Graph Edges: {Global.EVENT_GRAPH_EDGES}"])
@@ -356,7 +358,9 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
     overall_numbers.append([
         f"computation time for building model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_BUILDING_CPLEX))}"])
     overall_numbers.append([
-        f"computation time for solving model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_SOLVING))}"])
+        f"computation time for solving first model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_SOLVING_FIRST))}"])
+    overall_numbers.append([
+        f"computation time for solving second model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_SOLVING_SECOND))}"])
 
     path_to_output = find_output_path(base_output_path)
     fig = visualize_plan(plans, lines)
@@ -381,7 +385,7 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
     segment_dict: Dict[frozenset[Stop], list] = {}  # dictionary for segment in network, count occurence
     km_overall: float = 0
 
-    color_set = ['red', 'green', 'blue', 'yellow', 'black', 'purple', 'pink', 'brown'] * 3
+    color_set = ['red', 'green', 'blue', 'purple', 'pink', 'brown', 'orange'] * 3
     color_iter = iter(color_set)
     color_dict: Dict[Line, str] = {}
     for line in lines:
@@ -402,6 +406,16 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
 
     fig, ax = plt.subplots()
 
+    max_thickness = 10.0
+    sorted_seg = sorted(list(segment_dict.keys()), key=lambda u: segment_dict[u][0], reverse=True)
+
+    for stop_set in sorted_seg:
+        stop_set_iter = iter(stop_set)
+        x1, y1 = next(stop_set_iter).coordinates
+        x2, y2 = next(stop_set_iter).coordinates
+        ax.plot([x1, x2], [y1, y2], color=color_dict[segment_dict[stop_set][1]],
+                 lw=max_thickness * (segment_dict[stop_set][0] / km_overall))
+
     # build pyplot graph
     all_stop_cords: Set[Stop] = set()
     for line in lines:
@@ -411,17 +425,7 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
     x = [i.coordinates[0] for i in all_stop_cords_list]
     y = [i.coordinates[1] for i in all_stop_cords_list]
 
-    ax.plot(x, y, 'ro')
-
-    max_thickness = 10.0
-    sorted_seg = sorted(list(segment_dict.keys()), key=lambda u: segment_dict[u][0], reverse=True)
-
-    for stop_set in sorted_seg:
-        stop_set_iter = iter(stop_set)
-        x1, y1 = next(stop_set_iter).coordinates
-        x2, y2 = next(stop_set_iter).coordinates
-        ax.plot([x1, x2], [y1, y2], marker='x', color=color_dict[segment_dict[stop_set][1]],
-                 lw=max_thickness * (segment_dict[stop_set][0] / km_overall))
+    ax.plot(x, y, 'ko')
 
     return fig
 

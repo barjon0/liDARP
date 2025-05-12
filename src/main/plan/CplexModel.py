@@ -1,7 +1,9 @@
+import time
+import cplex
 from typing import Set, List, Tuple, Dict
 
-import Global
-from main.plan.TimeConstraints import RelativeConstraints, AbsoluteValueConstraints
+from utils import Global
+from main.plan.TimeConstraints import RelativeConstraints
 from utils.demand.AbstractRequest import Request, SplitRequest
 from utils.helper import Helper, Timer
 from utils.helper.EventGraph import EventGraph, IdleEvent, PickUpEvent
@@ -17,13 +19,11 @@ class CplexSolver:
         self.requests = requests
         self.buses = bus_list
         self.time_const_maker = RelativeConstraints()
+        self.multi_objective = True
         self.model = self.build_model()
 
 
     def build_model(self):
-        #sys.path.append(Global.CPLEX_PATH)
-        import cplex
-
         model = cplex.Cplex()
         # add variables
         # q_r for every request
@@ -53,26 +53,13 @@ class CplexSolver:
 
         lines = {x.line for x in self.buses}
         # set objective function: minimize distance covered but add penalty if request not accepted
-        mulit = False
 
-        if mulit:
-            model.multiobj.set_num(2)
+        if self.multi_objective:
+            model.objective.set_sense(model.objective.sense.maximize)
+            obj_pairs = [(f"q_{x.id}", 1) for x in self.requests]
 
-            # Objective 1 (priority 1)
-            obj_pairs1 = [(f"q_{x.id}", -1) for x in self.requests]
-            model.multiobj.set_linear(0, obj_pairs1)
-            model.multiobj.set_priority(0, 2)
+            model.objective.set_linear(obj_pairs)
 
-            # Objective 2 (priority 2)
-            obj_pairs = []
-            for first_event in self.event_graph.edge_dict.keys():
-                for second_event in self.event_graph.edge_dict[first_event][1]:
-                    obj_pairs += [(f"x_{first_event.id},{second_event.id}",
-                                   Helper.calc_distance(first_event.location, second_event.location))]
-            model.multiobj.set_linear(1, obj_pairs)
-            model.multiobj.set_priority(1, 1)
-
-            model.multiobj.set_sense(model.objective.sense.minimize)
         else:
             model.objective.set_sense(model.objective.sense.minimize)
             penalty = int(4 * Helper.calc_total_network_size(lines)) * len(self.requests) * len(self.buses) ** 2
@@ -263,14 +250,14 @@ class CplexSolver:
         # self.model.parameters.randomseed.set(2)
         # self.model.write("model.lp")
 
-        self.model.parameters.mip.tolerances.mipgap.set(0.01)
-        self.model.parameters.threads.set(8) # specify number of threads
+        self.model.parameters.mip.tolerances.mipgap.set(0.0)
+        self.model.parameters.threads.set(31) # specify number of threads
         self.model.parameters.workmem.set(27000)  # Up to 27 GB of RAM
-        self.model.parameters.timelimit.set(900)
+        self.model.parameters.timelimit.set(600)
 
         #self.model.parameters.emphasis.mip.set(3)
 
-        self.model.parameters.mip.strategy.nodeselect.set(2) # (check 1-3)select strategy for selecting node for branching
+        self.model.parameters.mip.strategy.nodeselect.set(1) # (check 1-3)select strategy for selecting node for branching
         self.model.parameters.mip.strategy.variableselect.set(0) #(check 0 /-1 - 4) select on which variable to branch on
 
         self.model.parameters.mip.strategy.lbheur.set(0)  # check(0,1)local branching heuristic
@@ -281,7 +268,7 @@ class CplexSolver:
         # self.model.parameters.mip.strategy.presolvenode.set(2) # check(0, -1, 3) decides if presolve at node
 
         #self.model.parameters.mip.cuts.nodecuts.set(3)
-        #self.model.parameters.mip.cuts.flowcovers.set(2)
+        self.model.parameters.mip.cuts.flowcovers.set(2)
         #self.model.parameters.mip.cuts.gomory.set(2)
         #self.model.parameters.mip.cuts.mircut.set(2)
         #self.model.parameters.mip.cuts.implied.set(-1)
@@ -294,7 +281,46 @@ class CplexSolver:
             print("There are duplicate variable names")
         self.model.parameters.mip.display.set(3)    # set extent of logging
         self.model.solve()
+
         print("Objective Value: " + str(self.model.solution.get_objective_value()))
+        Global.INTEGRALITY_GAP_FIRST = int(self.model.solution.MIP.get_mip_relative_gap() * 100)
+
+        Global.COMPUTATION_TIME_SOLVING_FIRST = round(time.time() - Global.COMPUTATION_START_TIME, 4)
+        print(f"Solved model after {Global.COMPUTATION_TIME_SOLVING_FIRST} seconds")
+        Global.COMPUTATION_START_TIME = time.time()
+
+        if self.multi_objective:
+            value = self.model.solution.get_objective_value()
+            req_pairs = [f"q_{x.id}" for x in self.requests]
+            self.model.linear_constraints.add(
+                lin_expr=[cplex.SparsePair(ind=req_pairs, val=[1]*len(self.requests))],
+                senses=["G"],
+                rhs=[value*0.99999]
+            )
+            self.model.parameters.mip.tolerances.mipgap.set(0.0)
+            self.model.parameters.timelimit.set(300)
+
+            self.model.parameters.mip.strategy.nodeselect.set(3)
+            #self.model.parameters.mip.strategy.lbheur.set(1)
+            #self.model.parameters.mip.strategy.rinsheur.set(50)
+            self.model.parameters.mip.cuts.flowcovers.set(2)
+
+            self.model.objective.set_sense(self.model.objective.sense.minimize)
+            obj_pairs = []
+            for first_event in self.event_graph.edge_dict.keys():
+                for second_event in self.event_graph.edge_dict[first_event][1]:
+                    obj_pairs += [(f"x_{first_event.id},{second_event.id}",
+                                   Helper.calc_distance(first_event.location, second_event.location))]
+
+            self.model.objective.set_linear(obj_pairs)
+            self.model.solve()
+
+            Global.INTEGRALITY_GAP_SECOND = int(self.model.solution.MIP.get_mip_relative_gap() * 100)
+
+        Global.COMPUTATION_TIME_SOLVING_SECOND = round(time.time() - Global.COMPUTATION_START_TIME, 4)
+        print(f"Solved model after {Global.COMPUTATION_TIME_SOLVING_SECOND} seconds")
+        Global.COMPUTATION_START_TIME = time.time()
+
 
     def convert_to_plan(self):
         # for every bus -> start at idle_event and walk along path
@@ -337,7 +363,7 @@ class CplexSolver:
                     duration = Timer.calc_time(Helper.calc_distance(idle_event.location, next_event.location))
                     curr_route_stop = RouteStop(idle_event.location, bus.line.start_time,
                                                 Timer.create_time_object(time_var - Global.TRANSFER_MINUTES - duration
-                                                + self.time_const_maker.add_value(next_event.first, True)), bus)
+                                                                         + self.time_const_maker.add_value(next_event.first, True)), bus)
 
                     while next_event is not idle_event:
                         # check selected option for request -> if event fits with option:

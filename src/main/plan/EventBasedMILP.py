@@ -1,7 +1,7 @@
 import time
 from typing import List, Set, Dict, Tuple
 
-import Global
+from utils import Global
 from main.plan.CplexModel import CplexSolver
 from main.plan.Planner import Planner
 from utils.demand.AbstractRequest import SplitRequest, Request
@@ -289,10 +289,6 @@ class EventBasedMILP(Planner):
 
         # solve model
         cplex_model.solve_model()
-
-        Global.COMPUTATION_TIME_SOLVING = round(time.time() - Global.COMPUTATION_START_TIME, 4)
-        print(f"Solved model after {Global.COMPUTATION_TIME_SOLVING} seconds")
-        Global.COMPUTATION_START_TIME = time.time()
 
         # convert to route solution
         self.curr_routes = cplex_model.convert_to_plan()

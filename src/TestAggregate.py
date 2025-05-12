@@ -84,5 +84,4 @@ def aggregate_tests(folder_path: str):
 
     plt.savefig("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput\\aggFiles\\aggPlotAll.png")
 
-
-aggregate_tests("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput")
+#aggregate_tests("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput")

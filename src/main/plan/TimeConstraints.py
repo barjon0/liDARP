@@ -1,4 +1,4 @@
-import Global
+from utils import Global
 from utils.demand.AbstractRequest import SplitRequest
 
 

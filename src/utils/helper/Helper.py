@@ -1,7 +1,7 @@
 import math
 from typing import Dict, Set, List
 
-import Global
+from utils import Global
 from utils.demand.AbstractRequest import SplitRequest, Request
 from utils.helper import Timer
 from utils.helper.LineGraph import LineGraph, LineEdge

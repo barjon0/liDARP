@@ -2,7 +2,7 @@ import math
 from dataclasses import dataclass
 from typing import List
 
-import Global
+from utils import Global
 
 
 def convert_2_time(duration_min: float):

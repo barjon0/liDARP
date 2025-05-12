@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-import Global
+from utils import Global
 from utils.helper import Timer
 from utils.helper.Timer import TimeImpl
 from utils.network.Line import Line
