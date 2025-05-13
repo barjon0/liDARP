@@ -87,7 +87,7 @@ def read_bus_network(network_path: str):
 
     lines: Dict[int, Line] = {}
     line_list = network_dict.get('lines')
-    depot_dict: Dict[Tuple[int, int], Stop] = {}
+    depot_dict: Dict[Tuple[int, int], Stop] = {x.coordinates: x for x in stops.values()}
     for line in line_list:
         depot_stop: Stop
         depot_coord: Tuple[int, int] = tuple(line["depot"])
@@ -108,7 +108,7 @@ def read_bus_network(network_path: str):
                                          Timer.conv_string_2_Time(line["startTime"]),
                                          Timer.conv_string_2_Time(line["endTime"]))
             else:
-                ValueError("No Global Capacity or individual given")
+                raise ValueError("No Global Capacity or individual given")
         else:
             lines[line["id"]] = Line(line["id"], stops_of_line, depot_stop, Global.CAPACITY_PER_LINE,
                                      Timer.conv_string_2_Time(line["startTime"]),
@@ -399,10 +399,11 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
             km_needed = Timer.calc_time(Helper.calc_distance(stop1, stop2))
             km_overall += km_needed
 
-            if stop_set not in segment_dict:
-                segment_dict[stop_set] = [km_needed, route.bus.line]
-            else:
-                segment_dict[stop_set][0] += km_needed
+            if len(stop_set) == 2:
+                if stop_set not in segment_dict:
+                    segment_dict[stop_set] = [km_needed, route.bus.line]
+                else:
+                    segment_dict[stop_set][0] += km_needed
 
     fig, ax = plt.subplots()
 

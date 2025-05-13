@@ -82,6 +82,6 @@ def aggregate_tests(folder_path: str):
 
     plt.plot(x, y, 'ro')
 
-    plt.savefig("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput\\aggFiles\\aggPlotAll.png")
+    plt.savefig("output/IncorrectTests/agg_plots")
 
-#aggregate_tests("C:\\Users\\jonas\\PycharmProjects\\liDARP\\output\\InterestingOutput")
+aggregate_tests("output/IncorrectTests/SolvedOptimally")

@@ -35,7 +35,7 @@ class IdleEvent(Event):
         self.location = line.depot
         self.line = line
         self.earl_depart = TimeImpl(0, 0)
-        self.lat_depart = TimeImpl(24, 0)
+        self.lat_depart = TimeImpl(23, 59)
 
     def set_before_event(self):
         return frozenset()
@@ -68,7 +68,6 @@ class PickUpEvent(Event):
 
     def __str__(self):
         return f"({self.first.id},{self.remaining_id},{self.location.id},{self.first.line.id})+"
-
 
 class DropOffEvent(Event):
     def __init__(self, first: SplitRequest, remaining: Set[SplitRequest], earl_time: TimeImpl, lat_time: TimeImpl):
@@ -140,7 +139,7 @@ class EventGraph:
 
         unconnected_events = set(look_up_dict.keys()) - overall_found
         if len(unconnected_events) > 0:
-            ValueError("There are events in EventGraph not connected to idle event")
+            raise ValueError("There are events in EventGraph not connected to idle event")
 
     # add all events of a single line together, generates edges
     def add_events(self, event_set_line: Set[Event]):

@@ -1,0 +1,18 @@
+km travelled total: 1274.175
+empty km total: 325.466
+used km total: 948.709
+system efficiency: 1.025
+deviation factor: 1.181
+vehicle utilization: 1.625
+empty km share: 0.255
+Number of Requests accepted: 71
+Integrality Gap Number Requests: 9
+Integrality Gap KM travelled: 10
+Number of Split Requests: 261
+Event Graph Nodes: 2767
+Event Graph Edges: 16631
+computation time for reading in: 00:00:00
+computation time for building event graph: 00:00:00
+computation time for building model: 00:00:01
+computation time for solving first model: 00:10:00
+computation time for solving second model: 00:05:00

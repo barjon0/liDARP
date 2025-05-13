@@ -298,7 +298,7 @@ class CplexSolver:
                 rhs=[value*0.99999]
             )
             self.model.parameters.mip.tolerances.mipgap.set(0.0)
-            self.model.parameters.timelimit.set(300)
+            self.model.parameters.timelimit.set(900 - int(Global.COMPUTATION_TIME_SOLVING_FIRST))
 
             self.model.parameters.mip.strategy.nodeselect.set(3)
             #self.model.parameters.mip.strategy.lbheur.set(1)

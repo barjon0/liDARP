@@ -15,7 +15,7 @@ def convert_2_time(duration_min: float):
     seconds = math.floor(seconds_left * 60)
 
     if hours > 23:
-        ValueError("time overflow occured")
+        raise ValueError("time overflow occured")
 
     return TimeImpl(hours, minutes, seconds)
 
@@ -48,11 +48,11 @@ class TimeImpl:
         if 0 <= self.hour <= 23:
             if 0 <= self.minute <= 59:
                 if not (0 <= self.second <= 59):
-                    ValueError(f"second not in range 0 to 60; was {self.second}")
+                    raise ValueError(f"second not in range 0 to 59; was {self.second}")
             else:
-                ValueError(f"minute not in range 0 to 60; was {self.minute}")
+                raise ValueError(f"minute not in range 0 to 59; was {self.minute}")
         else:
-            ValueError(f"hour not in range 0 to 23; was {self.second}")
+            raise ValueError(f"hour not in range 0 to 23; was {self.hour}")
 
     def get_in_minutes(self):
         sum_min: float = 0

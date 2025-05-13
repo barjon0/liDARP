@@ -19,10 +19,10 @@ class AbstractConstraintMaker():
 
 class AbsoluteValueConstraints(AbstractConstraintMaker):
     def create_variables(self, split_req: SplitRequest):
-        return [{"names": [f"B_{split_req.split_id}+"], "lb": [split_req.earl_start_time.get_in_minutes()],
-                 "ub": [split_req.latest_start_time.get_in_minutes()]},
-                {"names": [f"B_{split_req.split_id}-"], "lb": [split_req.earl_arr_time.get_in_minutes()],
-                 "ub": [split_req.latest_arr_time.get_in_minutes()]}]
+        return [{"names": [f"B_{split_req.split_id}+"], "lb": [split_req.earl_start_time.get_in_minutes() + Global.TRANSFER_MINUTES],
+                 "ub": [split_req.latest_start_time.get_in_minutes() + Global.TRANSFER_MINUTES]},
+                {"names": [f"B_{split_req.split_id}-"], "lb": [split_req.earl_arr_time.get_in_minutes() + Global.TRANSFER_MINUTES],
+                 "ub": [split_req.latest_arr_time.get_in_minutes() + Global.TRANSFER_MINUTES]}]
 
     def get_big_m(self, prec_split: SplitRequest, prec_bool: bool, duration, suc_absolute: float):
         return int(prec_split.line.end_time.get_in_minutes())
@@ -32,10 +32,10 @@ class AbsoluteValueConstraints(AbstractConstraintMaker):
 
 class RelativeConstraints(AbstractConstraintMaker):
     def create_variables(self, split_req: SplitRequest):
-        return [{"names": [f"B_{split_req.split_id}+"], "lb": [0],
-                 "ub": [split_req.latest_start_time.get_in_minutes() - split_req.earl_start_time.get_in_minutes()]},
-                {"names": [f"B_{split_req.split_id}-"], "lb": [0],
-                 "ub": [split_req.latest_arr_time.get_in_minutes() - split_req.earl_arr_time.get_in_minutes()]}]
+        return [{"names": [f"B_{split_req.split_id}+"], "lb": [Global.TRANSFER_MINUTES],
+                 "ub": [split_req.latest_start_time.get_in_minutes() - split_req.earl_start_time.get_in_minutes() + Global.TRANSFER_MINUTES]},
+                {"names": [f"B_{split_req.split_id}-"], "lb": [Global.TRANSFER_MINUTES],
+                 "ub": [split_req.latest_arr_time.get_in_minutes() - split_req.earl_arr_time.get_in_minutes() + Global.TRANSFER_MINUTES]}]
 
     def add_value(self, split_req: SplitRequest, start_bool: bool):
         if start_bool:

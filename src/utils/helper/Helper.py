@@ -221,7 +221,8 @@ def get_event_window(event_user: SplitRequest, other_users: Set[SplitRequest], e
             for user in pick_up_users:
                 if curr_time < user.earl_start_time:
                     curr_time = user.earl_start_time
-                elif curr_time > user.latest_start_time:
+            for user in pick_up_users:
+                if curr_time > user.latest_start_time:
                     return (None, None)
             curr_stop = key
             curr_time = curr_time.add_minutes(Global.TRANSFER_MINUTES)
@@ -230,8 +231,8 @@ def get_event_window(event_user: SplitRequest, other_users: Set[SplitRequest], e
         rem_travel_time = 0
         earl_depart = curr_time
 
-        for users in cand_dict[event_user.pick_up_location]:
-            poss_time = users.latest_start_time.add_minutes(Global.TRANSFER_MINUTES)
+        for user in cand_dict[event_user.pick_up_location]:
+            poss_time = user.latest_start_time.add_minutes(Global.TRANSFER_MINUTES)
             if latest_depart > poss_time:
                 latest_depart = poss_time
     else:

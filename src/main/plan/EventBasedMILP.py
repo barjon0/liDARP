@@ -270,7 +270,7 @@ class EventBasedMILP(Planner):
 
             self.event_graph.add_events(permutations)
             # unnecessary all nodes should be valid by construction, could use for debugging though
-            self.event_graph.check_connectivity(idle_event)
+            #self.event_graph.check_connectivity(idle_event)
 
         Global.COMPUTATION_TIME_BUILDING = round(time.time() - Global.COMPUTATION_START_TIME, 4)
         print(f"Created EventGraph after {Global.COMPUTATION_TIME_BUILDING} seconds")
@@ -279,6 +279,9 @@ class EventBasedMILP(Planner):
         Global.EVENT_GRAPH_EDGES = self.event_graph.get_number_of_edges()
         Global.NUMBER_OF_SPLITS = len(self.event_graph.request_dict.keys())
         Global.COMPUTATION_START_TIME = time.time()
+
+        for x in self.event_graph.edge_dict.keys():
+            print(x)
 
         # build lin. model
         cplex_model: CplexSolver = CplexSolver(self.event_graph, all_active_requests, self.bus_list)
