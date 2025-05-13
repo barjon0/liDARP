@@ -19,6 +19,13 @@ def convert_2_time(duration_min: float):
 
     return TimeImpl(hours, minutes, seconds)
 
+def convert_2_time_from_Sec(duration_sec: int):
+    h = duration_sec // 3600
+    m = (duration_sec % 3600) // 60
+    s = duration_sec % 60
+
+    return TimeImpl(h, m, s)
+
 
 def calc_time(distance: float) -> float:
     return (distance * 60) / Global.AVERAGE_KMH
@@ -62,6 +69,15 @@ class TimeImpl:
         sum_min += self.second / 60
 
         return sum_min
+
+    def get_in_seconds(self):
+        sum_sec: int = 0
+
+        sum_sec += 3600 * self.hour
+        sum_sec += 60 * self.minute
+        sum_sec += self.second
+
+        return sum_sec
 
     def __add__(self, other):
         assert isinstance(other, TimeImpl)
@@ -115,7 +131,7 @@ class TimeImpl:
             return False
 
     def add_minutes(self, minutes: float):
-        return convert_2_time(self.get_in_minutes() + minutes)
+        return convert_2_time_from_Sec(self.get_in_seconds() + math.floor(minutes * 60))
 
     def sub_minutes(self, minutes: float):
-        return convert_2_time(self.get_in_minutes() - minutes)
+        return convert_2_time_from_Sec(self.get_in_seconds() - math.floor(minutes * 60))

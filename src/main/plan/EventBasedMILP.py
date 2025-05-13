@@ -106,10 +106,6 @@ def sweep_line_time(splits_in_dir: Set[SplitRequest]):
                                                                                     splits_in_dir}
 
     for time_obj in event_points:
-        status_tuple[0].difference_update(queue[time_obj][1])
-        status_tuple[1].difference_update(queue[time_obj][3])
-        total_status -= queue[time_obj][3]
-
         status_tuple[1].update(queue[time_obj][2])
         status_tuple[0].update(queue[time_obj][0])
         total_status |= queue[time_obj][0]
@@ -129,6 +125,10 @@ def sweep_line_time(splits_in_dir: Set[SplitRequest]):
                     if other in status_tuple[1]:
                         output_dict[other][1].add(pick_open)
 
+        status_tuple[0].difference_update(queue[time_obj][1])
+        status_tuple[1].difference_update(queue[time_obj][3])
+        total_status -= queue[time_obj][3]
+
     return output_dict
 
 
@@ -144,7 +144,8 @@ class EventBasedMILP(Planner):
         return_set: Set[Event] = set()
         # check for next candidate to be distinct from previous ones
         id_set: Set[int] = {x.id for x in curr_permut}
-
+        #if event_user.id == 12 and (16 in [x.id for x in cand_list]):
+        #    print("hi")
         # check if candidates left
         while len(cand_list) > index:
             # if no one left stop
@@ -270,7 +271,7 @@ class EventBasedMILP(Planner):
 
             self.event_graph.add_events(permutations)
             # unnecessary all nodes should be valid by construction, could use for debugging though
-            #self.event_graph.check_connectivity(idle_event)
+            self.event_graph.check_connectivity(idle_event)
 
         Global.COMPUTATION_TIME_BUILDING = round(time.time() - Global.COMPUTATION_START_TIME, 4)
         print(f"Created EventGraph after {Global.COMPUTATION_TIME_BUILDING} seconds")
@@ -280,8 +281,8 @@ class EventBasedMILP(Planner):
         Global.NUMBER_OF_SPLITS = len(self.event_graph.request_dict.keys())
         Global.COMPUTATION_START_TIME = time.time()
 
-        for x in self.event_graph.edge_dict.keys():
-            print(x)
+        #for x in self.event_graph.edge_dict.keys():
+        #    print(x)
 
         # build lin. model
         cplex_model: CplexSolver = CplexSolver(self.event_graph, all_active_requests, self.bus_list)

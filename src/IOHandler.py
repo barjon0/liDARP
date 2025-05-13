@@ -346,8 +346,8 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         overall_numbers.append([f"Number of Requests accepted: {count_accepted}"])
     except ZeroDivisionError:
         pass
-    overall_numbers.append([f"Integrality Gap Number Requests: {Global.INTEGRALITY_GAP_FIRST}"])
-    overall_numbers.append([f"Integrality Gap KM travelled: {Global.INTEGRALITY_GAP_SECOND}"])
+    overall_numbers.append([f"Relative MIP Gap Number Requests: {Global.INTEGRALITY_GAP_FIRST}"])
+    overall_numbers.append([f"Relative MIP Gap KM travelled: {Global.INTEGRALITY_GAP_SECOND}"])
     overall_numbers.append([f"Number of Split Requests: {Global.NUMBER_OF_SPLITS}"])
     overall_numbers.append([f"Event Graph Nodes: {Global.EVENT_GRAPH_NODES}"])
     overall_numbers.append([f"Event Graph Edges: {Global.EVENT_GRAPH_EDGES}"])

@@ -116,7 +116,7 @@ class Executor:
                 travel_time_min = Timer.calc_time(
                     Helper.calc_distance(route.stop_list[i].stop, route.stop_list[i+1].stop))
                 needed_time = (route.stop_list[i+1].arriv_time - route.stop_list[i].depart_time).get_in_minutes()
-                if (travel_time_min - 0.5) > needed_time:
+                if (travel_time_min - 0.1) > needed_time:
                     raise ValueError(f"Travel times are not respected in solution; Minimum Time: {travel_time_min}, Needed time: {needed_time}")
 
         if time_next is None:

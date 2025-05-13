@@ -1,5 +1,5 @@
 {
-  "pathRequestFile": "../input/requests/random_requests/markt-karl/short_window/L3-15-20.csv",
+  "pathRequestFile": "../input/requests/random_requests/markt-karl/short_window/L3-15-40.csv",
   "pathNetworkFile": "../input/bus_networks/real_networks/markt-karl.json",
   "pathCPLEX": "/run/current-system/sw/bin/cplex",
   "outputPath": "../output",

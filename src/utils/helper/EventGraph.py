@@ -177,6 +177,8 @@ class EventGraph:
                 for event_after in same_pass_events_succ:
                     duration = Timer.calc_time(Helper.calc_distance(event_before.location, event_after.location))
                     service_time = Global.TRANSFER_MINUTES * int(bool(duration))
+                    #if event_before.first is not None and event_before.first.id == 2 and event_after.first is not None and event_after.first.id == 2:
+                    #    print("hi")
                     if (event_before is not event_after) and event_before.earl_depart.add_minutes(
                             duration + service_time) <= event_after.lat_depart:
                         self.edge_dict[event_after][0].append(event_before)
