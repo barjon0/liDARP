@@ -201,7 +201,7 @@ def main(path_2_config: str):
         f"Done with reading in; finding shortest routes and all route options after {Global.COMPUTATION_TIME_READING} seconds.")
     Global.COMPUTATION_START_TIME = time.time()
 
-    output_network({x.line for x in network})
+    #output_network({x.line for x in network})
 
     context.start_context()
 

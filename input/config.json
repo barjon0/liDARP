@@ -1,6 +1,6 @@
 {
-  "pathRequestFile": "../input/requests/random_requests/markt-karl/short_window/L3-15-40.csv",
-  "pathNetworkFile": "../input/bus_networks/real_networks/markt-karl.json",
+  "pathRequestFile": "../input/requests/random_requests/sw-schlee_2/long_window/L9-14-30.csv",
+  "pathNetworkFile": "../input/bus_networks/real_networks/sw-schlee_2.json",
   "pathCPLEX": "/run/current-system/sw/bin/cplex",
   "outputPath": "../output",
   "context": "static",

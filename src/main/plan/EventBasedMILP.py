@@ -53,7 +53,8 @@ def sweep_line_local(splits_in_dir: Set[SplitRequest], line: Line, direction: in
         for req_del in queue[stop][1]:
             # when deleting a request -> all remaining as candidate for drop-off
             for other_del in queue[stop][1]:
-                if req_del.id < other_del.id:
+                # add so that candidates have shorter latest time
+                if req_del.id != other_del.id and req_del.latest_arr_time <= other_del.latest_arr_time:
                     output_dict[req_del][1].add(other_del)
             for other in status_set:
                 if other.id != req_del.id:
@@ -62,7 +63,7 @@ def sweep_line_local(splits_in_dir: Set[SplitRequest], line: Line, direction: in
         # when adding a request -> all remainining actives are candidate for pick-up
         for req_in in queue[stop][0]:
             for other_new in queue[stop][0]:
-                if req_in.id < other_new.id:
+                if req_in.id != other_new.id and req_in.latest_start_time <= other_new.latest_start_time:
                     output_dict[req_in][0].add(other_new)
 
             for other in status_set:

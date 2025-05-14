@@ -22,7 +22,6 @@ class CplexSolver:
         self.multi_objective = True
         self.model = self.build_model()
 
-
     def build_model(self):
         model = cplex.Cplex()
         # add variables
@@ -145,11 +144,12 @@ class CplexSolver:
             for found_split in var_dict.keys():
                 var_names = [f"B_{found_split.split_id}+"]
                 duration = Timer.calc_time(Helper.calc_distance(idle_event.location, found_split.pick_up_location))
-                coeffs = [duration] * len(var_dict[found_split]) + [-1]
+                coeffs = [-duration] * len(var_dict[found_split]) + [1]
                 model.linear_constraints.add(
                     lin_expr=[cplex.SparsePair(ind=var_dict[found_split] + var_names, val=coeffs)],
-                    senses=["L"],
-                    rhs=[-line.start_time.get_in_minutes() - Global.TRANSFER_MINUTES + self.time_const_maker.add_value(found_split, True)]
+                    senses=["G"],
+                    rhs=[line.start_time.get_in_minutes() + Global.TRANSFER_MINUTES - self.time_const_maker.add_value(
+                        found_split, True)]
                 )
 
         # make timing constraints for all subsequent splits in event_graph...(for doc look into thesis)
@@ -196,7 +196,8 @@ class CplexSolver:
                         bool_second = False
 
                     duration = Timer.calc_time(Helper.calc_distance(split_first_location, split_sec_location))
-                    big_m = self.time_const_maker.get_big_m(split_req, bool_first, duration, self.time_const_maker.add_value(other_split, bool_second))
+                    big_m = self.time_const_maker.get_big_m(split_req, bool_first, duration,
+                                                            self.time_const_maker.add_value(other_split, bool_second))
                     coeffs = [-big_m] * len(var_dict[found_tuple]) + [-1] + [1]
 
                     service_time = Global.TRANSFER_MINUTES * (int(bool(duration)))
@@ -206,6 +207,25 @@ class CplexSolver:
                         rhs=[service_time - big_m + duration + self.time_const_maker.add_value(split_req, bool_first)
                              - self.time_const_maker.add_value(other_split, bool_second)]
                     )
+                    '''
+                    # constraint for enforcing time window on first pick up splits, when picked up after others
+                    if service_time == 0 and split_req.earl_start_time == split_req.parent.earl_start_time:
+                        if bool_second:
+                            diff_other = (other_split.latest_start_time - other_split.earl_start_time).get_in_minutes()
+                        else:
+                            diff_other = (other_split.latest_arr_time - other_split.earl_arr_time).get_in_minutes()
+
+                        some_m = diff_other - split_req.latest_start_time.get_in_minutes() + self.time_const_maker.add_value(other_split, bool_second)
+                        rhs = split_req.latest_start_time.get_in_minutes() + Global.TRANSFER_MINUTES + some_m - self.time_const_maker.add_value(other_split, bool_second)
+                        vars_namen = var_dict[found_tuple] + var_names[:-1]
+                        vals = [some_m]*len(var_dict[found_tuple]) + [1]
+
+                        model.linear_constraints.add(
+                            lin_expr=[cplex.SparsePair(ind=vars_namen, val=vals)],
+                            senses=["L"],
+                            rhs=[rhs]
+                        )
+                        '''
 
         for req in self.requests:
             found_tuples = set()
@@ -221,7 +241,9 @@ class CplexSolver:
                     model.linear_constraints.add(
                         lin_expr=[cplex.SparsePair(ind=var_names + [f"B_{end_split.split_id}-"], val=[-1, 1])],
                         senses=["L"],
-                        rhs=[max_ride_time + self.time_const_maker.add_value(start_split, True) - self.time_const_maker.add_value(end_split, False)]
+                        rhs=[Global.TRANSFER_MINUTES + max_ride_time + self.time_const_maker.add_value(start_split,
+                                                                                                       True) - self.time_const_maker.add_value(
+                            end_split, False)]
                     )
 
                 # add timing constraint for subsequent route stops
@@ -232,7 +254,8 @@ class CplexSolver:
                     model.linear_constraints.add(
                         lin_expr=[cplex.SparsePair(ind=var_names, val=[-1, 1])],
                         senses=["G"],
-                        rhs=[self.time_const_maker.add_value(prev_split, False) - self.time_const_maker.add_value(sub_split, True)]
+                        rhs=[self.time_const_maker.add_value(prev_split, False) - self.time_const_maker.add_value(
+                            sub_split, True)]
                     )
 
             # z variables for request sum to p_r
@@ -251,35 +274,37 @@ class CplexSolver:
         # self.model.write("model.lp")
 
         self.model.parameters.mip.tolerances.mipgap.set(0.0)
-        self.model.parameters.threads.set(31) # specify number of threads
-        self.model.parameters.workmem.set(27000)  # Up to 27 GB of RAM
+        self.model.parameters.threads.set(8)  # specify number of threads
+        self.model.parameters.workmem.set(8000)  # Up to 27 GB of RAM
         self.model.parameters.timelimit.set(600)
 
-        #self.model.parameters.emphasis.mip.set(3)
+        # self.model.parameters.emphasis.mip.set(3)
 
-        self.model.parameters.mip.strategy.nodeselect.set(1) # (check 1-3)select strategy for selecting node for branching
-        self.model.parameters.mip.strategy.variableselect.set(0) #(check 0 /-1 - 4) select on which variable to branch on
+        self.model.parameters.mip.strategy.nodeselect.set(
+            1)  # (check 1-3)select strategy for selecting node for branching
+        self.model.parameters.mip.strategy.variableselect.set(
+            0)  # (check 0 /-1 - 4) select on which variable to branch on
 
         self.model.parameters.mip.strategy.lbheur.set(0)  # check(0,1)local branching heuristic
-        self.model.parameters.mip.strategy.heuristicfreq.set(0) # (check 0/-1) disable use of heuristic
+        self.model.parameters.mip.strategy.heuristicfreq.set(0)  # (check 0/-1) disable use of heuristic
         self.model.parameters.mip.strategy.rinsheur.set(0)  # 50 = apply every 50 nodes
-        self.model.parameters.preprocessing.presolve.set(1) # decide if presolve heuristic is used
-        self.model.parameters.preprocessing.numpass.set(-1) # check(-1, 0) limits number of presolves
+        self.model.parameters.preprocessing.presolve.set(1)  # decide if presolve heuristic is used
+        self.model.parameters.preprocessing.numpass.set(-1)  # check(-1, 0) limits number of presolves
         # self.model.parameters.mip.strategy.presolvenode.set(2) # check(0, -1, 3) decides if presolve at node
 
-        #self.model.parameters.mip.cuts.nodecuts.set(3)
+        # self.model.parameters.mip.cuts.nodecuts.set(3)
         self.model.parameters.mip.cuts.flowcovers.set(2)
-        #self.model.parameters.mip.cuts.gomory.set(2)
-        #self.model.parameters.mip.cuts.mircut.set(2)
-        #self.model.parameters.mip.cuts.implied.set(-1)
-        #self.model.parameters.mip.cuts.localimplied.set(-1)
-        #self.model.parameters.mip.cuts.disjunctive.set(2)  # check(0 -1 - 3) choose to use more aggressive cuts
+        # self.model.parameters.mip.cuts.gomory.set(2)
+        # self.model.parameters.mip.cuts.mircut.set(2)
+        # self.model.parameters.mip.cuts.implied.set(-1)
+        # self.model.parameters.mip.cuts.localimplied.set(-1)
+        # self.model.parameters.mip.cuts.disjunctive.set(2)  # check(0 -1 - 3) choose to use more aggressive cuts
 
         var_names = self.model.variables.get_names()
         var_names_set = set(var_names)
         if len(var_names) != len(var_names_set):
             print("There are duplicate variable names")
-        self.model.parameters.mip.display.set(3)    # set extent of logging
+        self.model.parameters.mip.display.set(3)  # set extent of logging
         self.model.solve()
 
         print("Objective Value: " + str(self.model.solution.get_objective_value()))
@@ -289,20 +314,22 @@ class CplexSolver:
         print(f"Solved model after {Global.COMPUTATION_TIME_SOLVING_FIRST} seconds")
         Global.COMPUTATION_START_TIME = time.time()
 
+        req_vars = [f"q_{x.id}" for x in self.requests]
+        value = sum(self.model.solution.get_values(req_vars))
+        self.model.linear_constraints.add(
+            lin_expr=[cplex.SparsePair(ind=req_vars, val=[1] * len(self.requests))],
+            senses=["G"],
+            rhs=[value * 0.99999]
+        )
+
         if self.multi_objective:
-            value = self.model.solution.get_objective_value()
-            req_pairs = [f"q_{x.id}" for x in self.requests]
-            self.model.linear_constraints.add(
-                lin_expr=[cplex.SparsePair(ind=req_pairs, val=[1]*len(self.requests))],
-                senses=["G"],
-                rhs=[value*0.99999]
-            )
+
             self.model.parameters.mip.tolerances.mipgap.set(0.0)
             self.model.parameters.timelimit.set(900 - int(Global.COMPUTATION_TIME_SOLVING_FIRST))
 
             self.model.parameters.mip.strategy.nodeselect.set(3)
-            #self.model.parameters.mip.strategy.lbheur.set(1)
-            #self.model.parameters.mip.strategy.rinsheur.set(50)
+            # self.model.parameters.mip.strategy.lbheur.set(1)
+            # self.model.parameters.mip.strategy.rinsheur.set(50)
             self.model.parameters.mip.cuts.flowcovers.set(2)
 
             self.model.objective.set_sense(self.model.objective.sense.minimize)
@@ -317,10 +344,37 @@ class CplexSolver:
 
             Global.INTEGRALITY_GAP_SECOND = int(self.model.solution.MIP.get_mip_relative_gap() * 100)
 
+        # solve one more time and minimize B*-variables
+        # add constraint for km variables
+        '''
+        obj_pairs = []
+        for first_event in self.event_graph.edge_dict.keys():
+            for second_event in self.event_graph.edge_dict[first_event][1]:
+                obj_pairs += [(f"x_{first_event.id},{second_event.id}",
+                               Helper.calc_distance(first_event.location, second_event.location))]
+        values = self.model.solution.get_values([x[0] for x in obj_pairs])
+
+        summed_value = 0
+        for i in range(len(values)):
+            summed_value += (values[i] * obj_pairs[i][1])
+
+        self.model.linear_constraints.add(
+            lin_expr=[cplex.SparsePair(ind=[x[0] for x in obj_pairs], val=[x[1] for x in obj_pairs])],
+            senses=["L"],
+            rhs=[summed_value * 1.0001]
+        )
+
+        self.model.objective.set_sense(self.model.objective.sense.minimize)
+        time_pairs = [(f"B_{x.split_id}+", 1.0) for x in self.event_graph.request_dict.keys()]
+        time_pairs += [(f"B_{x.split_id}-", 1.0) for x in self.event_graph.request_dict.keys()]
+
+        self.model.objective.set_linear(time_pairs)
+        self.model.solve()
+        '''
+
         Global.COMPUTATION_TIME_SOLVING_SECOND = round(time.time() - Global.COMPUTATION_START_TIME, 4)
         print(f"Solved model after {Global.COMPUTATION_TIME_SOLVING_SECOND} seconds")
         Global.COMPUTATION_START_TIME = time.time()
-
 
     def convert_to_plan(self):
         # for every bus -> start at idle_event and walk along path
@@ -347,8 +401,8 @@ class CplexSolver:
 
                 # i is curr. bus idx(starting at 0)
                 counter = -1  # counter for amount of 1s already found
-                j = -1              # j iterates over edge values
-                while counter < i and j < len(round_edge_vals) - 1:         # if
+                j = -1  # j iterates over edge values
+                while counter < i and j < len(round_edge_vals) - 1:  # if
                     j += 1
                     if round_edge_vals[j] == 1:
                         counter += 1
@@ -363,7 +417,8 @@ class CplexSolver:
                     duration = Timer.calc_time(Helper.calc_distance(idle_event.location, next_event.location))
                     curr_route_stop = RouteStop(idle_event.location, bus.line.start_time,
                                                 Timer.create_time_object(time_var - Global.TRANSFER_MINUTES - duration
-                                                                         + self.time_const_maker.add_value(next_event.first, True)), bus)
+                                                                         + self.time_const_maker.add_value(
+                                                    next_event.first, True)), bus)
 
                     while next_event is not idle_event:
                         # check selected option for request -> if event fits with option:
@@ -383,13 +438,17 @@ class CplexSolver:
                                     time_var = self.model.solution.get_values(f"B_{next_event.first.split_id}+")
                                     curr_route_stop = RouteStop(next_event.location,
                                                                 curr_route_stop.depart_time.add_minutes(duration),
-                                                                Timer.create_time_object(time_var + self.time_const_maker.add_value(next_event.first, True)), bus)
+                                                                Timer.create_time_object(
+                                                                    time_var + self.time_const_maker.add_value(
+                                                                        next_event.first, True)), bus)
                                     curr_route_stop.pick_up.add(next_event.first.parent)
                                 else:
                                     time_var = self.model.solution.get_values(f"B_{next_event.first.split_id}-")
                                     curr_route_stop = RouteStop(next_event.location,
                                                                 curr_route_stop.depart_time.add_minutes(duration),
-                                                                Timer.create_time_object(time_var + self.time_const_maker.add_value(next_event.first, False)), bus)
+                                                                Timer.create_time_object(
+                                                                    time_var + self.time_const_maker.add_value(
+                                                                        next_event.first, False)), bus)
                                     curr_route_stop.drop_off.add(next_event.first.parent)
                             else:
                                 if isinstance(next_event, PickUpEvent):
