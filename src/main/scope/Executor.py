@@ -12,21 +12,12 @@ from utils.plan.Route import Route
 from utils.plan.RouteStop import RouteStop
 
 
-def time_window_respected(earl_time, act_time, latest_time):
-    converted_start = earl_time.add_minutes(-(1/60))
-    converted_end = latest_time.add_minutes(1/60)
-    if converted_start <= act_time <= converted_end:
-        return True
-    else:
-        return False
-
 class Executor:
     def __init__(self, busses: List[Bus], requests: Set[Request]):
         self.user_locations: Dict[Request, Stop] = {x: x.pick_up_location for x in requests}  # for waiting users
         self.passengers: Dict[Bus, Set[Request]] = {x: set() for x in busses}
-        self.bus_locations: Dict[Bus, Stop] = {x: x.line.depot for x in
-                                               busses}  # locations of bus (or next location bus is arriving at)
-        self.bus_delay: Dict[Bus, float] = {x: 0 for x in busses}  # time of bus to arriving at next stop
+        self.bus_locations: Dict[Bus, Stop] = {x: x.line.depot for x in busses}  # locations of bus (or next location bus is arriving at)
+        self.bus_delay: Dict[Bus, int] = {x: 0 for x in busses}  # time of bus to arriving at next stop
         self.routes = [Route(x) for x in busses]
         self.requests = requests
 
@@ -43,13 +34,14 @@ class Executor:
                 if wait_stop.depart_time <= curr_time:
                     for u_picked in wait_stop.pick_up:
                         if u_picked not in self.user_locations.keys():
+                            print_out_route(done_r_stops)
                             raise ValueError(f"User {u_picked.id} not marked as waiting")
                         this_stop = self.user_locations.pop(u_picked)
                         if this_stop is not wait_stop.stop:
                             raise ValueError("Missmatch between expected pick-up stop and actual")
                         self.passengers[wait_stop.bus].add(u_picked)
                         if wait_stop.stop is u_picked.pick_up_location:
-                            u_picked.act_start_time = wait_stop.depart_time.sub_minutes(Global.TRANSFER_MINUTES)
+                            u_picked.act_start_time = wait_stop.depart_time.sub_seconds(Global.TRANSFER_SECONDS)
                 else:
                     still_waiting.append(wait_stop)
 
@@ -78,7 +70,7 @@ class Executor:
                             raise ValueError("Missmatch between expected pick-up stop and actual")
                         self.passengers[wait_event.bus].add(u_picked)
                         if u_picked.pick_up_location is wait_event.stop:
-                            u_picked.act_start_time = wait_event.depart_time.sub_minutes(Global.TRANSFER_MINUTES)
+                            u_picked.act_start_time = wait_event.depart_time.sub_seconds(Global.TRANSFER_SECONDS)
                 else:
                     wait_event.depart_time = final_time
                     wait_event.pick_up.clear()
@@ -90,17 +82,21 @@ class Executor:
                         raise ValueError("Missmatch between expected pick-up stop and actual")
                     self.passengers[wait_event.bus].add(u_picked)
                     if u_picked.pick_up_location is wait_event.stop:
-                        u_picked.act_start_time = wait_event.depart_time.sub_minutes(Global.TRANSFER_MINUTES)
+                        u_picked.act_start_time = wait_event.depart_time.sub_seconds(Global.TRANSFER_SECONDS)
 
         # check accepted users are taken care of (valid start and end times) -> max ride time
         for request in self.requests:
             if request.act_start_time is not None:
-                if not (time_window_respected(request.earl_start_time, request.act_start_time, request.latest_start_time)):
+                if not (request.earl_start_time <= request.act_start_time <= request.latest_start_time):
                     raise ValueError(f"The pick-up time window of request {request.id} not respected; Window: [{request.earl_start_time} : {request.latest_start_time}], actual time: {request.act_start_time}")
                 if request.act_end_time is None:
                     raise ValueError(f"Request {request.id} was picked up but not delivered")
-                if not (time_window_respected(request.earl_arr_time, request.act_end_time, request.latest_arr_time)):
+                if not (request.earl_arr_time <= request.act_end_time <= request.latest_arr_time):
                     raise ValueError(f"The drop-off time window of request {request.id} not respected; Window: [{request.earl_arr_time} : {request.latest_arr_time}], actual time: {request.act_end_time}")
+                time_travelled = (request.act_end_time - request.act_start_time).get_in_seconds()
+                max_travel_time = (request.latest_arr_time - request.latest_start_time).get_in_seconds()
+                if time_travelled > (max_travel_time + 0.1):
+                    raise ValueError(f"Maximum travel time of request {request.id} not respected; Time travelled: {time_travelled}, Maximum Time: {max_travel_time}")
 
     # could observe everything here make sure there are no inconsistencies
     def execute_plan(self, curr_routes: List[Route], new_requests: Set[Request], time_next: TimeImpl):
@@ -115,9 +111,11 @@ class Executor:
             for i in range(0, len(route.stop_list) - 1):
                 travel_time_min = Timer.calc_time(
                     Helper.calc_distance(route.stop_list[i].stop, route.stop_list[i+1].stop))
-                needed_time = (route.stop_list[i+1].arriv_time - route.stop_list[i].depart_time).get_in_minutes()
+                if route.stop_list[i+1].arriv_time <= route.stop_list[i].depart_time:
+                    print_out_route(route.stop_list)
+                needed_time = (route.stop_list[i+1].arriv_time - route.stop_list[i].depart_time).get_in_seconds()
                 if (travel_time_min - 0.1) > needed_time:
-                    raise ValueError(f"Travel times are not respected in solution; Minimum Time: {travel_time_min}, Needed time: {needed_time}")
+                    raise ValueError(f"Travel times are not respected in solution; Minimum Time: {travel_time_min / 60}, Needed time: {needed_time / 60}")
 
         if time_next is None:
             for route_count in range(len(curr_routes)):
@@ -136,6 +134,8 @@ class Executor:
                 time_count: TimeImpl
                 if len(curr_routes[route_count].stop_list) > 0:
                     time_count = curr_routes[route_count].stop_list[0].arriv_time
+                else:
+                    raise ValueError("Route can not be empty")
                 counter = 0
                 while counter < len(curr_routes[route_count].stop_list) and time_count < time_next:
                     done_r_stops.append(curr_routes[route_count].stop_list[counter])
@@ -146,7 +146,11 @@ class Executor:
 
                 # could lead to inconsistencies in dynamic case: not finished stop_events are counted as fully processed, but are cut short(pick-ups not done)
                 if counter < len(curr_routes[route_count].stop_list):
-                    self.bus_delay[curr_routes[route_count].bus] = (time_count - time_next).get_in_minutes()
+                    self.bus_delay[curr_routes[route_count].bus] = (time_count - time_next).get_in_seconds()
 
             done_r_stops.sort(key=lambda x: x.arriv_time)
             self.check_plan(done_r_stops)
+
+def print_out_route(route: List[RouteStop]):
+    for stopr in route:
+        print(str(stopr) + " arrival time: " + str(stopr.arriv_time) + " depart time: " + str(stopr.depart_time))

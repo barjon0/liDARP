@@ -1,5 +1,5 @@
 import math
-from typing import Dict, Set, List
+from typing import Dict, Set, List, Tuple
 
 from utils import Global
 from utils.demand.AbstractRequest import SplitRequest, Request
@@ -30,7 +30,7 @@ def check_dir(split_req: SplitRequest):
 
 
 # need to calculate number of transfers as well
-def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph: LineGraph, number_of_passengers: int):
+def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph: LineGraph, number_of_passengers: int) -> Tuple[int, int]:
     # dijkstra alg.
     pred_dict: Dict[Stop, (
         Set[Line], int)] = {}  # contains poss. lines request is in at stop v and number of transfers at this point
@@ -43,7 +43,7 @@ def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph:
     pred_dict[pick_up_location] = (pick_lines, 1)
 
     queue: PriorityQueue = PriorityQueue(network_graph.get_nodes())
-    queue.replace(pick_up_location, Global.TRANSFER_MINUTES)
+    queue.replace(pick_up_location, Global.TRANSFER_SECONDS)
 
     while (not queue.is_empty()) and (queue.get_priority(drop_off_location) is not None):
         v, dist_v = queue.pop()
@@ -54,10 +54,10 @@ def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph:
                 if dist_u is not None:
                     # need to know in which lines u could be here -> if way to v is another line -> transfer time
                     numb_transfer: int = pred_dict[v][1]
-                    alter: float = dist_v + adj_edge.duration
+                    alter: int = dist_v + adj_edge.duration
 
                     if adj_edge.line not in pred_dict[v][0]:
-                        alter += Global.TRANSFER_MINUTES
+                        alter += Global.TRANSFER_SECONDS
                         numb_transfer += 1
 
                     # if equal decide by number of transfers
@@ -70,22 +70,20 @@ def calc_fastest(pick_up_location: Stop, drop_off_location: Stop, network_graph:
     fast_time, transfers = queue.final_vals[drop_off_location], pred_dict[drop_off_location][1]
     return fast_time, transfers
 
-
 def complete_request(pick_up: Stop, drop_off: Stop, network_graph: LineGraph, number_of_passengers: int):
     # calculate fastest time -> account for transfers -> plug into max_delay_equation, return corresp. km
     fastest_time, numb_transfers = calc_fastest(pick_up, drop_off, network_graph, number_of_passengers)
-    assert fastest_time is not math.inf
-    long_delay = eval(Global.MAX_DELAY_EQUATION, {"math": math, "x": fastest_time})
-    km_planned = Timer.conv_time_to_dist(fastest_time - (numb_transfers * Global.TRANSFER_MINUTES))
+    assert fastest_time is not Global.INFINITE_INT
+    long_delay: int = 60 * max(0, round(eval(Global.MAX_DELAY_EQUATION, {"math": math, "x": (fastest_time/60)})))
 
-    return Timer.convert_2_time(long_delay + fastest_time + Global.TIME_WINDOW), numb_transfers, km_planned
+    return long_delay + fastest_time, numb_transfers, fastest_time
 
 
 # check if hop-count exceeded -> add current stop to all open lists -> if not source: recursive call to neighbours
-def rec_dfs(last_line: LineEdge, curr_minutes: float, curr_transfers: int, prev_visited: Set[Stop],
-            curr_open: List[List[SplitRequest]], look_up_dict: Dict[LineEdge, SplitRequest], max_time: float,
+def rec_dfs(last_line: LineEdge, curr_seconds: int, curr_transfers: int, prev_visited: Set[Stop],
+            curr_open: List[List[SplitRequest]], look_up_dict: Dict[LineEdge, SplitRequest], max_time: int,
             max_hop_count: int, target: Stop, network_graph: LineGraph, number_of_passengers: int):
-    if curr_transfers > max_hop_count or curr_minutes > max_time:
+    if curr_transfers > max_hop_count or curr_seconds > max_time:
         return []
     else:
         for combi in curr_open:
@@ -101,7 +99,7 @@ def rec_dfs(last_line: LineEdge, curr_minutes: float, curr_transfers: int, prev_
 
             combined_poss: List[List[SplitRequest]] = []
             for suc in successors:
-                combined_poss += rec_dfs(suc, curr_minutes + Global.TRANSFER_MINUTES + suc.duration, curr_transfers + 1,
+                combined_poss += rec_dfs(suc, curr_seconds + Global.TRANSFER_SECONDS + suc.duration, curr_transfers + 1,
                                          prev_visited.copy(), [x.copy() for x in curr_open], look_up_dict, max_time,
                                          max_hop_count, target, network_graph, number_of_passengers)
 
@@ -159,7 +157,7 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
                                                 request.number_of_passengers)
 
     # now do dfs with dictionary of split-requests, account for max. number of transfers and time constraints
-    max_time: float = (request.latest_arr_time - request.earl_start_time).get_in_minutes() - Global.TIME_WINDOW
+    max_time: int = (request.latest_arr_time - request.latest_start_time).get_in_seconds()
 
     # depth-first search to retrieve all combinations, starting at start-position
     result: List[List[SplitRequest]] = []
@@ -167,7 +165,7 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
 
     for start_sub_line in start_tupels:
         if start_sub_line.line.capacity >= request.number_of_passengers:
-            result += rec_dfs(start_sub_line, Global.TRANSFER_MINUTES + start_sub_line.duration, 1,
+            result += rec_dfs(start_sub_line, Global.TRANSFER_SECONDS + start_sub_line.duration, 1,
                               {request.pick_up_location},
                               [[]], agg_edges_dict, max_time, request.numb_transfer + Global.NUMBER_OF_EXTRA_TRANSFERS,
                               request.drop_off_location, network_graph, request.number_of_passengers)
@@ -216,20 +214,20 @@ def get_event_window(event_user: SplitRequest, other_users: Set[SplitRequest], e
     for key in key_list_pick:
         if key in cand_dict:
             pick_up_users: Set[SplitRequest] = cand_dict[key]
-            duration: float = Timer.calc_time(calc_distance(curr_stop, key))
-            curr_time = curr_time.add_minutes(duration)
+            duration: int = Timer.calc_time(calc_distance(curr_stop, key))
+            curr_time = curr_time.add_seconds(duration)
             for user in pick_up_users:
                 if curr_time < user.earl_start_time:
                     curr_time = user.earl_start_time
             for user in pick_up_users:
                 if curr_time > user.latest_start_time:
-                    return (None, None)
+                    return None, None
             curr_stop = key
-            curr_time = curr_time.add_minutes(Global.TRANSFER_MINUTES)
+            curr_time = curr_time.add_seconds(Global.TRANSFER_SECONDS)
 
     if event_type:
-        rem_travel_time = 0
-        earl_time = curr_time.sub_minutes(Global.TRANSFER_MINUTES)
+        rem_travel_time: int = 0
+        earl_time = curr_time.sub_seconds(Global.TRANSFER_SECONDS)
 
         for user in cand_dict[event_user.pick_up_location]:
             poss_time = user.latest_start_time
@@ -237,8 +235,8 @@ def get_event_window(event_user: SplitRequest, other_users: Set[SplitRequest], e
                 latest_time = poss_time
     else:
         duration = Timer.calc_time(calc_distance(curr_stop, event_user.drop_off_location))
-        rem_travel_time = -duration - Global.TRANSFER_MINUTES
-        earl_time = curr_time.add_minutes(duration)
+        rem_travel_time = -duration - Global.TRANSFER_SECONDS
+        earl_time = curr_time.add_seconds(duration)
 
     # need to check for all remaining if latest_arr time is satisfied,
     # -> also check latest possible departure: sum travel times from here, check latest_arr time - travel time, choose leftmost
@@ -246,25 +244,25 @@ def get_event_window(event_user: SplitRequest, other_users: Set[SplitRequest], e
     for key in key_list_drop:
         if key in cand_dict:
             drop_off_users: Set[SplitRequest] = cand_dict[key]
-            duration: float = Timer.calc_time(calc_distance(curr_stop, key))
+            duration: int = Timer.calc_time(calc_distance(curr_stop, key))
 
             rem_travel_time += duration
-            curr_time = curr_time.add_minutes(duration)
+            curr_time = curr_time.add_seconds(duration)
             for user in drop_off_users:
-                poss_time = user.latest_arr_time.sub_minutes(rem_travel_time + Global.TRANSFER_MINUTES)
+                poss_time = user.latest_arr_time.sub_seconds(rem_travel_time + Global.TRANSFER_SECONDS)
                 if poss_time < latest_time:
                     latest_time = poss_time
 
                 if curr_time > user.latest_arr_time:
-                    return (None, None)
+                    return None, None
             curr_stop = key
-            curr_time = curr_time.add_minutes(Global.TRANSFER_MINUTES)
-            rem_travel_time += Global.TRANSFER_MINUTES
+            curr_time = curr_time.add_seconds(Global.TRANSFER_SECONDS)
+            rem_travel_time += Global.TRANSFER_SECONDS
 
     if earl_time > latest_time:
-        return (None, None)
+        return None, None
     else:
-        return (earl_time, latest_time)
+        return earl_time, latest_time
 
 
 def check_overlap(interval_1_start: TimeImpl, interval_1_end: TimeImpl, interval_2_start: TimeImpl,

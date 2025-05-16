@@ -145,8 +145,9 @@ class EventBasedMILP(Planner):
         return_set: Set[Event] = set()
         # check for next candidate to be distinct from previous ones
         id_set: Set[int] = {x.id for x in curr_permut}
-        #if event_user.id == 12 and (16 in [x.id for x in cand_list]):
-        #    print("hi")
+
+        if event_user.id == 3 and (13 in [x.id for x in cand_list]):
+            print("hi")
         # check if candidates left
         while len(cand_list) > index:
             # if no one left stop

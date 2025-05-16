@@ -10,8 +10,8 @@ from utils.plan.Route import Route
 class Planner:
 
     def __init__(self, bus_list: List[Bus], network_graph: LineGraph):
-        self.bus_list = bus_list
-        self.network_graph = network_graph
+        self.bus_list: List[Bus] = bus_list
+        self.network_graph: LineGraph = network_graph
         self.requests: Set[Route] = set()
         self.curr_routes: List[Route] = []
 

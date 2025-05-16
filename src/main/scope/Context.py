@@ -4,13 +4,15 @@ from main.plan.Planner import Planner
 from main.scope.Executor import Executor
 from utils.demand.AbstractRequest import Request
 from utils.helper.Timer import TimeImpl
+from utils.network.Bus import Bus
+from utils.network.Stop import Stop
 
 
 class Context:
     def __init__(self, requests: Set[Request], executor: Executor, planner: Planner):
         self.time_table: Dict[TimeImpl, Set[Request]] = self.create_time_table(requests)
-        self.executor = executor
-        self.planner = planner
+        self.executor: Executor = executor
+        self.planner: Planner = planner
 
     def create_time_table(self, requests: Set[Request]):
         NotImplementedError("instantiated abstract context class")
@@ -27,11 +29,11 @@ class Context:
     # waits some time for planning
     # give new plan to executor -> execute()
     def trigger_event(self, time_now: TimeImpl, time_next=None):
-        curr_requests = self.time_table[time_now]
-        curr_bus_locations = self.executor.bus_locations.copy()
-        curr_user_locations = self.executor.user_locations.copy()
-        curr_bus_delay = self.executor.bus_delay.copy()
-        bus_user_dict = self.executor.passengers.copy()
+        curr_requests: Set[Request] = self.time_table[time_now]
+        curr_bus_locations: Dict[Bus, Stop] = self.executor.bus_locations.copy()
+        curr_user_locations: Dict[Request, Stop] = self.executor.user_locations.copy()
+        curr_bus_delay: Dict[Bus, int] = self.executor.bus_delay.copy()
+        bus_user_dict: Dict[Bus, Set[Request]] = self.executor.passengers.copy()
 
         self.planner.make_plan(curr_requests, curr_bus_locations, bus_user_dict, curr_user_locations, curr_bus_delay)
 

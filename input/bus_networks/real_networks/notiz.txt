@@ -4,6 +4,8 @@ Testing: for markt-karl(-lohr): unit-to-km = 2, average kmh = 65
 for sw-geo: unit-to-km = 3, average kmh = 70
 for sw-schlee: unit-to-km = 1.5, average kmh = 65
 
+1.2 * log_1.2(x) for extra deviation
+
 Wert-markt: 661 connects Marktheidenfeld and nearby villages; 663 connects Wertheim and nearby villages, both lines intersect/travel along 6 same towns
 
 wert-markt_v2: add 660, 662 -> connect some villages directly to nearby city, transfer not necessary

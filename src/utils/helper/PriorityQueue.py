@@ -1,22 +1,23 @@
-import math
 from typing import List, Dict, TypeVar, Generic
+
+from utils import Global
 
 T = TypeVar('T')
 
 
 class PriorityQueue(Generic[T]):
     def __init__(self, nodes: List[T]):
-        self.node_dict: Dict[T, float] = {}
-        self.priority_dict: Dict[float, List[T]] = {math.inf: []}
-        self.final_vals: Dict[T, float] = {}
+        self.node_dict: Dict[T, int] = {}
+        self.priority_dict: Dict[int, List[T]] = {Global.INFINITE_INT: []}
+        self.final_vals: Dict[T, int] = {}
 
         for node in nodes:
-            self.node_dict[node] = math.inf
-            self.priority_dict[math.inf].append(node)
+            self.node_dict[node] = Global.INFINITE_INT
+            self.priority_dict[Global.INFINITE_INT].append(node)
 
     def pop(self):
         priorities = self.priority_dict.keys()
-        min_value: float = min(priorities)
+        min_value: int = min(priorities)
         poss_nodes = self.priority_dict.get(min_value)
         node: T = poss_nodes[0]
 
@@ -32,14 +33,14 @@ class PriorityQueue(Generic[T]):
 
         return node, min_value
 
-    def add_node(self, node: T, priority: float):
+    def add_node(self, node: T, priority: int):
         self.node_dict[node] = priority
         if priority in self.priority_dict:
             self.priority_dict[priority].append(node)
         else:
             self.priority_dict[priority] = [node]
 
-    def replace(self, node: T, new_priority: float):
+    def replace(self, node: T, new_priority: int):
         old_val = self.node_dict[node]
         self.node_dict[node] = new_priority
 
@@ -59,8 +60,8 @@ class PriorityQueue(Generic[T]):
         elif node in self.node_dict:  # if node still there return value
             return self.node_dict[node]
         else:
-            self.add_node(node, math.inf)  # if node new -> add to queue and return infinity
-            return math.inf
+            self.add_node(node, Global.INFINITE_INT)  # if node new -> add to queue and return infinity
+            return Global.INFINITE_INT
 
     def is_empty(self):
         if len(self.node_dict.keys()) > 0:

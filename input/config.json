@@ -1,8 +1,8 @@
 {
-  "pathRequestFile": "../input/requests/random_requests/sw-schlee_2/long_window/L9-14-30.csv",
-  "pathNetworkFile": "../input/bus_networks/real_networks/sw-schlee_2.json",
+  "pathRequestFile": "../input/requests/random_requests/markt-karl-lohr/long_window/L9-26-80.csv",
+  "pathNetworkFile": "../input/bus_networks/real_networks/markt-karl-lohr.json",
   "pathCPLEX": "/run/current-system/sw/bin/cplex",
-  "outputPath": "../output",
+  "outputPath": "../output/InterestingOutput/MultiObj/markt-karl-lohr/long",
   "context": "static",
   "solver": "eventMILP",
   "averageKmH": 65,
@@ -11,7 +11,7 @@
   "co2PerKM": 0.208,
   "capacityPerLine": 6,
   "numberOfExtraTransfers": 1,
-  "maxDelayEquation": "math.log(x) / math.log(1.2)",
+  "maxDelayEquation": "1.2 * math.log(x) / math.log(1.2)",
   "transferMinutes": 2,
   "timeWindowMinutes": 15
 }

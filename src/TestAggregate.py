@@ -32,18 +32,18 @@ def rec_check_folder(folder: Path, val_dict: Dict[int, List[List[str]]]):
             if len(b_lines) > 3:
                 first_stop = b_lines[2]
                 first_data = first_stop.split(",")
-                start_time = Timer.conv_string_2_Time(first_data[2])
+                start_time = Timer.conv_string_2_time(first_data[2])
                 if start_time < earl_time:
                     earl_time = start_time
 
                 last_line = b_lines[-2]
                 last_data = last_line.split(",")
-                end_time = Timer.conv_string_2_Time(last_data[3])
+                end_time = Timer.conv_string_2_time(last_data[3])
                 if end_time > latest_time:
                     latest_time = end_time
             b_f.close()
 
-        duration_len = (latest_time - earl_time).get_in_minutes() / 60
+        duration_len = (latest_time - earl_time).get_in_seconds() / 60
 
         o_file = folder / overall_file[0]
         o_f = o_file.open("r", encoding="utf-8")

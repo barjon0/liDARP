@@ -131,7 +131,7 @@ class CplexSolver:
                 model.linear_constraints.add(
                     lin_expr=[cplex.SparsePair(ind=var_dict[found_split] + var_names, val=coeffs)],
                     senses=["L"],
-                    rhs=[line.end_time.get_in_minutes() - self.time_const_maker.add_value(found_split, False)]
+                    rhs=[line.end_time.get_in_seconds() - self.time_const_maker.add_value(found_split, False)]
                 )
 
             # check outgoing edges / start at idle_event
@@ -148,7 +148,7 @@ class CplexSolver:
                 model.linear_constraints.add(
                     lin_expr=[cplex.SparsePair(ind=var_dict[found_split] + var_names, val=coeffs)],
                     senses=["G"],
-                    rhs=[line.start_time.get_in_minutes() + Global.TRANSFER_MINUTES - self.time_const_maker.add_value(
+                    rhs=[line.start_time.get_in_seconds() + Global.TRANSFER_SECONDS - self.time_const_maker.add_value(
                         found_split, True)]
                 )
 
@@ -200,7 +200,7 @@ class CplexSolver:
                                                             self.time_const_maker.add_value(other_split, bool_second))
                     coeffs = [-big_m] * len(var_dict[found_tuple]) + [-1] + [1]
 
-                    service_time = Global.TRANSFER_MINUTES * (int(bool(duration)))
+                    service_time = Global.TRANSFER_SECONDS * (int(bool(duration)))
                     model.linear_constraints.add(
                         lin_expr=[cplex.SparsePair(ind=var_dict[found_tuple] + var_names, val=coeffs)],
                         senses=["G"],
@@ -235,15 +235,14 @@ class CplexSolver:
                 if (start_split, end_split) not in found_tuples:
                     found_tuples |= {(start_split, end_split)}
                     var_names = [f"B_{start_split.split_id}+"]
-                    max_ride_time = (req.latest_arr_time - req.latest_start_time).get_in_minutes()
+                    max_ride_time = (req.latest_arr_time - req.latest_start_time).get_in_seconds()
 
                     # max ride time constraint
                     model.linear_constraints.add(
                         lin_expr=[cplex.SparsePair(ind=var_names + [f"B_{end_split.split_id}-"], val=[-1, 1])],
                         senses=["L"],
-                        rhs=[Global.TRANSFER_MINUTES + max_ride_time + self.time_const_maker.add_value(start_split,
-                                                                                                       True) - self.time_const_maker.add_value(
-                            end_split, False)]
+                        rhs=[max_ride_time + self.time_const_maker.add_value(start_split,True)
+                             - self.time_const_maker.add_value(end_split, False)]
                     )
 
                 # add timing constraint for subsequent route stops
@@ -274,8 +273,8 @@ class CplexSolver:
         # self.model.write("model.lp")
 
         self.model.parameters.mip.tolerances.mipgap.set(0.0)
-        self.model.parameters.threads.set(8)  # specify number of threads
-        self.model.parameters.workmem.set(8000)  # Up to 27 GB of RAM
+        self.model.parameters.threads.set(31)  # specify number of threads
+        self.model.parameters.workmem.set(27000)  # Up to 27 GB of RAM
         self.model.parameters.timelimit.set(600)
 
         # self.model.parameters.emphasis.mip.set(3)
@@ -327,12 +326,14 @@ class CplexSolver:
             self.model.parameters.mip.tolerances.mipgap.set(0.0)
             self.model.parameters.timelimit.set(900 - int(Global.COMPUTATION_TIME_SOLVING_FIRST))
 
-            self.model.parameters.mip.strategy.nodeselect.set(3)
+            self.model.parameters.mip.strategy.nodeselect.set(1)
             # self.model.parameters.mip.strategy.lbheur.set(1)
             # self.model.parameters.mip.strategy.rinsheur.set(50)
             self.model.parameters.mip.cuts.flowcovers.set(2)
 
             self.model.objective.set_sense(self.model.objective.sense.minimize)
+            #reset obj function
+            self.model.objective.set_linear([(f"q_{x.id}", 0) for x in self.requests])
             obj_pairs = []
             for first_event in self.event_graph.edge_dict.keys():
                 for second_event in self.event_graph.edge_dict[first_event][1]:
@@ -379,7 +380,10 @@ class CplexSolver:
     def convert_to_plan(self):
         # for every bus -> start at idle_event and walk along path
         # -> (build RouteStop, check when finished!!, add users to pick-up and drop-off and times)
+        processed_pick_up: Set[SplitRequest] = set()
+        processed_drop_off: Set[SplitRequest] = set()
         request_order = list(self.requests)
+        #arc_names = []
         solution_ints = self.model.solution.get_values([f"q_{x.id}" for x in request_order])
         combi = []
         for i in range(len(request_order)):
@@ -392,8 +396,8 @@ class CplexSolver:
         for line in line_bus_dict.keys():
             idle_event: IdleEvent = next(
                 iter(x for x in self.event_graph.edge_dict.keys() if isinstance(x, IdleEvent) and x.line == line))
-            edge_vals = self.model.solution.get_values(
-                [f"x_{idle_event.id},{x.id}" for x in self.event_graph.edge_dict[idle_event][1]])
+            sub_names = [f"x_{idle_event.id},{x.id}" for x in self.event_graph.edge_dict[idle_event][1]]
+            edge_vals = self.model.solution.get_values(sub_names)
             round_edge_vals = [round(x) for x in edge_vals]
             for i in range(len(line_bus_dict[line])):
                 bus = line_bus_dict[line][i]
@@ -412,13 +416,13 @@ class CplexSolver:
                         RouteStop(idle_event.location, bus.line.start_time, bus.line.end_time, bus))
                 else:
                     next_event = self.event_graph.edge_dict[idle_event][1][j]
-                    time_var = self.model.solution.get_values(f"B_{next_event.first.split_id}+")
+                    #arc_names.append(sub_names[j])
+                    time_var = round(self.model.solution.get_values(f"B_{next_event.first.split_id}+"))
 
                     duration = Timer.calc_time(Helper.calc_distance(idle_event.location, next_event.location))
                     curr_route_stop = RouteStop(idle_event.location, bus.line.start_time,
-                                                Timer.create_time_object(time_var - Global.TRANSFER_MINUTES - duration
-                                                                         + self.time_const_maker.add_value(
-                                                    next_event.first, True)), bus)
+                                                Timer.create_time_object(time_var - Global.TRANSFER_SECONDS - duration
+                                                + self.time_const_maker.add_value(next_event.first, True)), bus)
 
                     while next_event is not idle_event:
                         # check selected option for request -> if event fits with option:
@@ -435,47 +439,86 @@ class CplexSolver:
                                 duration = Timer.calc_time(
                                     Helper.calc_distance(curr_route_stop.stop, next_event.location))
                                 if isinstance(next_event, PickUpEvent):
-                                    time_var = self.model.solution.get_values(f"B_{next_event.first.split_id}+")
-                                    curr_route_stop = RouteStop(next_event.location,
-                                                                curr_route_stop.depart_time.add_minutes(duration),
-                                                                Timer.create_time_object(
-                                                                    time_var + self.time_const_maker.add_value(
-                                                                        next_event.first, True)), bus)
-                                    curr_route_stop.pick_up.add(next_event.first.parent)
+                                    if next_event.first not in processed_pick_up:
+                                        time_var = round(self.model.solution.get_values(f"B_{next_event.first.split_id}+"))
+                                        curr_route_stop = RouteStop(next_event.location,
+                                                                    curr_route_stop.depart_time.add_seconds(duration),
+                                                                    Timer.create_time_object(
+                                                                        time_var + self.time_const_maker.add_value(
+                                                                            next_event.first, True)), bus)
+                                        curr_route_stop.pick_up.add(next_event.first.parent)
+                                        processed_pick_up.add(next_event.first)
+                                    else:
+                                        print(f"Double serviced request removed: {next_event}")
                                 else:
-                                    time_var = self.model.solution.get_values(f"B_{next_event.first.split_id}-")
-                                    curr_route_stop = RouteStop(next_event.location,
-                                                                curr_route_stop.depart_time.add_minutes(duration),
-                                                                Timer.create_time_object(
-                                                                    time_var + self.time_const_maker.add_value(
-                                                                        next_event.first, False)), bus)
-                                    curr_route_stop.drop_off.add(next_event.first.parent)
+                                    if next_event.first not in processed_drop_off:
+                                        time_var = round(self.model.solution.get_values(f"B_{next_event.first.split_id}-"))
+                                        curr_route_stop = RouteStop(next_event.location,
+                                                                    curr_route_stop.depart_time.add_seconds(duration),
+                                                                    Timer.create_time_object(
+                                                                        time_var + self.time_const_maker.add_value(
+                                                                            next_event.first, False)), bus)
+                                        curr_route_stop.drop_off.add(next_event.first.parent)
+                                        processed_drop_off.add(next_event.first)
+                                    else:
+                                        print(f"Double serviced request removed: {next_event}")
                             else:
                                 if isinstance(next_event, PickUpEvent):
-                                    time_var = (self.model.solution.get_values(f"B_{next_event.first.split_id}+")
-                                                + self.time_const_maker.add_value(next_event.first, True))
-                                    curr_route_stop.pick_up.add(next_event.first.parent)
+                                    if next_event.first not in processed_pick_up:
+                                        time_var = (round(self.model.solution.get_values(f"B_{next_event.first.split_id}+"))
+                                                    + self.time_const_maker.add_value(next_event.first, True))
+                                        curr_route_stop.pick_up.add(next_event.first.parent)
+                                        processed_pick_up.add(next_event.first)
+                                    else:
+                                        print(f"Double serviced request removed: {next_event}")
                                 else:
-                                    time_var = (self.model.solution.get_values(f"B_{next_event.first.split_id}-")
-                                                + self.time_const_maker.add_value(next_event.first, False))
-                                    curr_route_stop.drop_off.add(next_event.first.parent)
+                                    if next_event.first not in processed_drop_off:
+                                        time_var = (self.model.solution.get_values(f"B_{next_event.first.split_id}-")
+                                                    + self.time_const_maker.add_value(next_event.first, False))
+                                        curr_route_stop.drop_off.add(next_event.first.parent)
+                                        processed_drop_off.add(next_event.first)
+                                    else:
+                                        print(f"Double serviced request removed: {next_event}")
 
                                 curr_route_stop.depart_time = Timer.create_time_object(time_var)
                         else:
                             print(f"Unnecessary event removed: {next_event}")
 
-                        edge_vals = self.model.solution.get_values(
-                            [f"x_{next_event.id},{x.id}" for x in self.event_graph.edge_dict[next_event][1]])
+                        sub_names = [f"x_{next_event.id},{x.id}" for x in self.event_graph.edge_dict[next_event][1]]
+                        edge_vals = self.model.solution.get_values(sub_names)
                         next_round_edge_vals = [round(x) for x in edge_vals]
                         next_event_idx = next_round_edge_vals.index(1)
                         next_event = self.event_graph.edge_dict[next_event][1][next_event_idx]
+                        #arc_names.append(sub_names[next_event_idx])
 
                     # handle final idle_event stop
-                    bus_plan.stop_list.append(curr_route_stop)
-                    duration = Timer.calc_time(Helper.calc_distance(curr_route_stop.stop, next_event.location))
-                    bus_plan.stop_list.append(
-                        RouteStop(next_event.location, curr_route_stop.depart_time.add_minutes(duration),
-                                  bus.line.end_time, bus))
+                    if curr_route_stop.stop == bus.line.depot:
+                        curr_route_stop.depart_time = bus.line.end_time
+                        bus_plan.stop_list.append(curr_route_stop)
+                    else:
+                        bus_plan.stop_list.append(curr_route_stop)
+                        duration = Timer.calc_time(Helper.calc_distance(curr_route_stop.stop, next_event.location))
+                        bus_plan.stop_list.append(
+                            RouteStop(next_event.location, curr_route_stop.depart_time.add_seconds(duration),
+                                      bus.line.end_time, bus))
                 all_plans.append(bus_plan)
+
+        '''
+        all_names = []
+        km_all = []
+        for first in self.event_graph.edge_dict.keys():
+            for second in self.event_graph.edge_dict[first][1]:
+                all_names.append(f"x_{first.id},{second.id}")
+                km_all.append(Helper.calc_distance(first.location, second.location))
+        vals = [round(x) for x in self.model.solution.get_values(all_names)]
+        filtered = [item for item, m in zip(all_names, vals) if m == 1]
+        filtered_kms = [item for item, u in zip(km_all, vals) if u == 1]
+        print(sum(filtered_kms))
+        print(self.model.solution.get_objective_value())
+
+        intersect = set(filtered) - set(arc_names)
+        if len(intersect) > 0:
+            print("what is happening")
+            '''
 
         return all_plans

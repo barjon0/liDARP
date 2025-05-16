@@ -5,6 +5,7 @@ from utils.demand.AbstractRequest import SplitRequest
 from utils.helper import Timer, Helper
 from utils.helper.Timer import TimeImpl
 from utils.network.Line import Line
+from utils.network.Stop import Stop
 
 
 class Event:
@@ -13,13 +14,13 @@ class Event:
     def __init__(self, first: SplitRequest = None, remaining: Set[SplitRequest] = None):
         if remaining is None:
             remaining = set()
-        self.remaining_id = {x.id for x in remaining}
-        self.remaining_split_id = {x.split_id for x in remaining}
-        self.first = first
-        self.earl_depart = None
-        self.lat_depart = None
-        self.location = None
-        self.id = Event.id_counter
+        self.remaining_id: Set[int] = {x.id for x in remaining}
+        self.remaining_split_id: Set[int] = {x.split_id for x in remaining}
+        self.first: SplitRequest = first
+        self.earl_depart: TimeImpl | None = None
+        self.lat_depart: TimeImpl  | None = None
+        self.location: Stop | None = None
+        self.id: int = Event.id_counter
         Event.id_counter += 1
 
     def set_before_event(self):
@@ -32,10 +33,10 @@ class Event:
 class IdleEvent(Event):
     def __init__(self, line: Line):
         super().__init__()
-        self.location = line.depot
-        self.line = line
-        self.earl_depart = TimeImpl(0, 0)
-        self.lat_depart = TimeImpl(23, 59)
+        self.location: Stop = line.depot
+        self.line: Line = line
+        self.earl_depart: TimeImpl = TimeImpl(0, 0)
+        self.lat_depart: TimeImpl = TimeImpl(23, 59)
 
     def set_before_event(self):
         return frozenset()
@@ -53,9 +54,9 @@ class IdleEvent(Event):
 class PickUpEvent(Event):
     def __init__(self, first: SplitRequest, remaining: Set[SplitRequest], earl_time: TimeImpl, lat_time: TimeImpl):
         super().__init__(first, remaining)
-        self.location = first.pick_up_location
-        self.earl_depart = earl_time
-        self.lat_depart = lat_time
+        self.location: Stop = first.pick_up_location
+        self.earl_depart: TimeImpl = earl_time
+        self.lat_depart: TimeImpl = lat_time
 
     def set_before_event(self):
         return frozenset(self.remaining_split_id)
@@ -72,9 +73,9 @@ class PickUpEvent(Event):
 class DropOffEvent(Event):
     def __init__(self, first: SplitRequest, remaining: Set[SplitRequest], earl_time: TimeImpl, lat_time: TimeImpl):
         super().__init__(first, remaining)
-        self.location = first.drop_off_location
-        self.earl_depart = earl_time
-        self.lat_depart = lat_time
+        self.location: Stop = first.drop_off_location
+        self.earl_depart: TimeImpl = earl_time
+        self.lat_depart: TimeImpl = lat_time
 
     def set_before_event(self):
         return frozenset(self.remaining_split_id | {self.first.split_id})
@@ -108,15 +109,8 @@ class EventGraph:
 
     # delete all nodes, that do not have path to and from idle
     def check_connectivity(self, idle_event: IdleEvent):
-        """
-        all_six = {x for x in self.edge_dict.keys() if x.first is not None and x.first.id == 13}
-        print(f"There are {len(all_six)} nodes of id 6")
-        for node in all_six:
-            print(node)
-        """
-
-        look_up_dict: Dict[Event, List[bool, bool]] = {x: [False, False] for x in self.edge_dict.keys() if
-                                                       not isinstance(x, IdleEvent) and x.first.line == idle_event.line}
+        look_up_dict: Dict[Event, List[bool]] = {x: [False, False] for x in self.edge_dict.keys()
+                                                 if not isinstance(x, IdleEvent) and x.first.line == idle_event.line}
         look_up_dict |= {idle_event: [True, True]}
 
         # do breadth-search for incoming and outgoing edges, respectively
@@ -176,10 +170,10 @@ class EventGraph:
             for event_before in same_pass_events_pred:
                 for event_after in same_pass_events_succ:
                     duration = Timer.calc_time(Helper.calc_distance(event_before.location, event_after.location))
-                    service_time = Global.TRANSFER_MINUTES * int(bool(duration))
+                    service_time = Global.TRANSFER_SECONDS * int(bool(duration))
                     #if event_before.first is not None and event_before.first.id == 2 and event_after.first is not None and event_after.first.id == 2:
                     #    print("hi")
-                    if (event_before is not event_after) and event_before.earl_depart.add_minutes(
+                    if (event_before is not event_after) and event_before.earl_depart.add_seconds(
                             duration + service_time) <= event_after.lat_depart:
                         self.edge_dict[event_after][0].append(event_before)
                         self.edge_dict[event_before][1].append(event_after)
