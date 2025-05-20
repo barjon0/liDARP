@@ -19,7 +19,7 @@ class CplexSolver:
         self.requests = requests
         self.buses = bus_list
         self.time_const_maker = RelativeConstraints()
-        self.multi_objective = True
+        self.multi_objective = False
         self.model = self.build_model()
 
     def build_model(self):
@@ -275,14 +275,12 @@ class CplexSolver:
         self.model.parameters.mip.tolerances.mipgap.set(0.0)
         self.model.parameters.threads.set(31)  # specify number of threads
         self.model.parameters.workmem.set(27000)  # Up to 27 GB of RAM
-        self.model.parameters.timelimit.set(600)
+        self.model.parameters.timelimit.set(900)
 
         # self.model.parameters.emphasis.mip.set(3)
 
-        self.model.parameters.mip.strategy.nodeselect.set(
-            1)  # (check 1-3)select strategy for selecting node for branching
-        self.model.parameters.mip.strategy.variableselect.set(
-            0)  # (check 0 /-1 - 4) select on which variable to branch on
+        self.model.parameters.mip.strategy.nodeselect.set(2)  # (check 1-3)select strategy for selecting node for branching
+        self.model.parameters.mip.strategy.variableselect.set(0)  # (check 0 /-1 - 4) select on which variable to branch on
 
         self.model.parameters.mip.strategy.lbheur.set(0)  # check(0,1)local branching heuristic
         self.model.parameters.mip.strategy.heuristicfreq.set(0)  # (check 0/-1) disable use of heuristic
@@ -292,8 +290,8 @@ class CplexSolver:
         # self.model.parameters.mip.strategy.presolvenode.set(2) # check(0, -1, 3) decides if presolve at node
 
         # self.model.parameters.mip.cuts.nodecuts.set(3)
-        self.model.parameters.mip.cuts.flowcovers.set(2)
-        # self.model.parameters.mip.cuts.gomory.set(2)
+        # self.model.parameters.mip.cuts.flowcovers.set(2)
+        self.model.parameters.mip.cuts.gomory.set(2)
         # self.model.parameters.mip.cuts.mircut.set(2)
         # self.model.parameters.mip.cuts.implied.set(-1)
         # self.model.parameters.mip.cuts.localimplied.set(-1)
@@ -313,15 +311,15 @@ class CplexSolver:
         print(f"Solved model after {Global.COMPUTATION_TIME_SOLVING_FIRST} seconds")
         Global.COMPUTATION_START_TIME = time.time()
 
-        req_vars = [f"q_{x.id}" for x in self.requests]
-        value = sum(self.model.solution.get_values(req_vars))
-        self.model.linear_constraints.add(
-            lin_expr=[cplex.SparsePair(ind=req_vars, val=[1] * len(self.requests))],
-            senses=["G"],
-            rhs=[value * 0.99999]
-        )
-
         if self.multi_objective:
+
+            req_vars = [f"q_{x.id}" for x in self.requests]
+            value = sum(self.model.solution.get_values(req_vars))
+            self.model.linear_constraints.add(
+                lin_expr=[cplex.SparsePair(ind=req_vars, val=[1] * len(self.requests))],
+                senses=["G"],
+                rhs=[value * 0.99999]
+            )
 
             self.model.parameters.mip.tolerances.mipgap.set(0.0)
             self.model.parameters.timelimit.set(900 - int(Global.COMPUTATION_TIME_SOLVING_FIRST))
