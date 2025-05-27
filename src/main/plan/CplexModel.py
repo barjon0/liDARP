@@ -19,7 +19,7 @@ class CplexSolver:
         self.requests = requests
         self.buses = bus_list
         self.time_const_maker = RelativeConstraints()
-        self.multi_objective = False
+        self.multi_objective = True
         self.model = self.build_model()
 
     def build_model(self):
@@ -275,7 +275,10 @@ class CplexSolver:
         self.model.parameters.mip.tolerances.mipgap.set(0.0)
         self.model.parameters.threads.set(31)  # specify number of threads
         self.model.parameters.workmem.set(27000)  # Up to 27 GB of RAM
-        self.model.parameters.timelimit.set(900)
+        if self.multi_objective:
+            self.model.parameters.timelimit.set(600)
+        else:
+            self.model.parameters.timelimit.set(900)
 
         # self.model.parameters.emphasis.mip.set(3)
 
@@ -324,10 +327,11 @@ class CplexSolver:
             self.model.parameters.mip.tolerances.mipgap.set(0.0)
             self.model.parameters.timelimit.set(900 - int(Global.COMPUTATION_TIME_SOLVING_FIRST))
 
-            self.model.parameters.mip.strategy.nodeselect.set(1)
+            self.model.parameters.mip.strategy.nodeselect.set(2)
             # self.model.parameters.mip.strategy.lbheur.set(1)
             # self.model.parameters.mip.strategy.rinsheur.set(50)
-            self.model.parameters.mip.cuts.flowcovers.set(2)
+            # self.model.parameters.mip.cuts.gomory.set(2)
+            # self.model.parameters.mip.cuts.flowcovers.set(2)
 
             self.model.objective.set_sense(self.model.objective.sense.minimize)
             #reset obj function

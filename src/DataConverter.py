@@ -12,7 +12,7 @@ from utils.network.Bus import Bus
 from utils.network.Stop import Stop
 
 
-def createDistanceFile(requests: List[Request], depot: Stop, output_path: str):
+def createDistanceFile(requests: List[Request], depot: Stop, output_path: str, name: str):
     req_stops_pick = [x.pick_up_location for x in requests]
     req_stops_drop = [x.drop_off_location for x in requests]
 
@@ -22,20 +22,19 @@ def createDistanceFile(requests: List[Request], depot: Stop, output_path: str):
     for i in range(len(all_stops)):
         output_line = []
         for j in range(len(all_stops)):
-            output_line.append(Helper.calc_distance(all_stops[i], all_stops[j]))
+            output_line.append(round(Helper.calc_distance(all_stops[i], all_stops[j]), 2))
         output_list.append(output_line)
 
     #write file to output
-    with open(output_path, 'w') as f:
+    with open(output_path + "/" + name + "_c_a.txt", 'w') as f:
         for sublist in output_list:
             # Join each sublist's values with a space and write to file
             f.write(" ".join(map(str, sublist)) + "\n")
 
-def createRequestFile(requests: List[Request], network: List[Bus], output_path: str):
+def createRequestFile(requests: List[Request], network: List[Bus], output_path: str, name: str):
     # find time for requests
-    file_name = output_path.split("/")[-1]
-    number = int(file_name[1])
-    tw_length = (number+2)*60
+    number = int(name[1])
+    tw_length = (number+5)*60
     first_out = [len(network), 2*len(requests), tw_length, Global.CAPACITY_PER_LINE, 0]
 
     depot_out_first = [0, 0.0, 0, 0.0, tw_length, tw_length]
@@ -46,22 +45,22 @@ def createRequestFile(requests: List[Request], network: List[Bus], output_path: 
     for i in range(len(requests)):
         # make output for pick up stops
         # convert time windows
-        earliest = (requests[i].earl_start_time.get_in_seconds() - conversion_value) / 60
-        latest = (requests[i].latest_start_time.get_in_seconds() - conversion_value) / 60
+        earliest = (requests[i].earl_start_time.get_in_seconds() - (conversion_value * 60)) / 60
+        latest = (requests[i].latest_start_time.get_in_seconds() - (conversion_value * 60)) / 60
         max_ride_time = (requests[i].latest_arr_time - requests[i].latest_start_time).get_in_seconds() / 60
 
-        pick_out.append([i, Global.TRANSFER_SECONDS, requests[i].number_of_passengers, earliest, latest, max_ride_time])
+        pick_out.append([i + 1, Global.TRANSFER_SECONDS / 60, requests[i].number_of_passengers, round(earliest, 2), round(latest, 2), round(max_ride_time, 2)])
 
     drop_out = []
     for i in range(len(requests)):
         # make output for pick up stops
         # convert time windows
-        earliest = (requests[i].earl_arr_time.get_in_seconds() - conversion_value) / 60
-        latest = (requests[i].latest_arr_time.get_in_seconds() - conversion_value) / 60
+        earliest = (requests[i].earl_arr_time.get_in_seconds() - (conversion_value * 60)) / 60
+        latest = (requests[i].latest_arr_time.get_in_seconds() - (conversion_value * 60)) / 60
         max_ride_time = (requests[i].latest_arr_time - requests[i].latest_start_time).get_in_seconds() / 60
 
         drop_out.append(
-            [i + len(requests), Global.TRANSFER_SECONDS, -requests[i].number_of_passengers, earliest, latest, max_ride_time])
+            [i + 1 + len(requests), Global.TRANSFER_SECONDS / 60, -requests[i].number_of_passengers, round(earliest, 2), round(latest, 2), round(max_ride_time, 2)])
 
     all_out = pick_out + drop_out
     all_out.append(depot_out_last)
@@ -69,7 +68,7 @@ def createRequestFile(requests: List[Request], network: List[Bus], output_path: 
     all_out.insert(0, first_out)
 
     #write file to output
-    with open(output_path, 'w') as f:
+    with open(output_path + "/" + name + ".txt", 'w') as f:
         for sublist in all_out:
             # Join each sublist's values with a space and write to file
             f.write(" ".join(map(str, sublist)) + "\n")
@@ -86,8 +85,8 @@ def convert(path_to_config):
     Global.CAPACITY_PER_LINE = config.get('capacityPerLine')
     Global.NUMBER_OF_EXTRA_TRANSFERS = config.get('numberOfExtraTransfers')
     Global.MAX_DELAY_EQUATION = config.get('maxDelayEquation')
-    Global.TRANSFER_MINUTES = config.get('transferMinutes')
-    Global.TIME_WINDOW = config.get('timeWindowMinutes')
+    Global.TRANSFER_SECONDS = config.get('transferMinutes') * 60
+    Global.TIME_WINDOW_SECONDS = config.get('timeWindowMinutes') * 60
     Global.CPLEX_PATH = config.get('pathCPLEX')
 
     request_files_path: str = config.get('pathRequestFile')
@@ -101,11 +100,11 @@ def convert(path_to_config):
     req_folder = Path(request_files_path)
     for req_file in req_folder.iterdir():
         if req_file.is_file():
-            name = req_file.name
+            name = req_file.name.split(".")[0]
             requests: List[Request] = sorted(read_requests(str(req_file), network_graph), key=lambda k: k.id)
 
-            createDistanceFile(requests, lines[0].depot, output_path + "/" + name)
-            createRequestFile(requests, network, output_path + "/" + name)
+            createDistanceFile(requests, lines[0].depot, output_path, name)
+            createRequestFile(requests, network, output_path, name)
 
 
 convert("../input/config.json")
