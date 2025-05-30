@@ -3,10 +3,20 @@ from typing import Dict, List
 import re
 
 from matplotlib import pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 
 from utils.helper import Timer
 from utils.helper.Timer import TimeImpl
 
+
+def add_to_dict(network_name, number_requests, comp_time, val_dict):
+    if network_name in val_dict:
+        if number_requests in val_dict[network_name]:
+            val_dict[network_name][number_requests] += [comp_time]
+        else:
+            val_dict[network_name][number_requests] = [comp_time]
+    else:
+        val_dict[network_name] = {number_requests: [comp_time]}
 
 def get_time_window_length(bus_files: List[str], parent_folder: Path):
     if len(bus_files) > 0:
@@ -33,16 +43,15 @@ def get_time_window_length(bus_files: List[str], parent_folder: Path):
             b_f.close()
 
         duration =  (latest_time - earl_time).get_in_seconds() / 3600
-        supposed_dur = int(parent_folder.name[1])
 
-        return supposed_dur
+        return duration
 
 def density_to_requests(parent_folder: Path, val_dict: dict, overall_lines: List[str], req_lines: List[str],
                           bus_names: List[str]):
 
     number_requests = len(req_lines) - 1
 
-    density = number_requests / get_time_window_length(bus_names, parent_folder)
+    density = number_requests / float(parent_folder.name[1])
     req_cell = [x for x in overall_lines if "Number of Requests accepted:" in x]
     acc_req = int(req_cell[0].split(" ")[-1])
     if density in val_dict:
@@ -50,47 +59,38 @@ def density_to_requests(parent_folder: Path, val_dict: dict, overall_lines: List
     else:
         val_dict[density] = [acc_req]
 
-def density_to_efficiency(parent_folder: Path, val_dict: dict, overall_lines: List[str], req_lines: List[str],
+def requests_to_efficiency(parent_folder: Path, val_dict: dict, overall_lines: List[str], req_lines: List[str],
                           bus_names: List[str]):
     req_cell = [x for x in overall_lines if "Number of Requests accepted:" in x]
     number_req = len(req_lines) - 1
 
-    density = number_req / get_time_window_length(bus_names, parent_folder)
+    network_name = str(parent_folder).split("/")[-3]
+
     interesting_lines = [x for x in overall_lines if "system efficiency:" in x]
     sys_eff = float(interesting_lines[0].split(" ")[-1])
-    if density in val_dict:
-        val_dict[density].append(sys_eff)
-    else:
-        val_dict[density] = [sys_eff]
+    add_to_dict(network_name, number_req, sys_eff, val_dict)
 
-def denied_req_density(parent_folder: Path, val_dict: dict, overall_lines: List[str], req_lines: List[str],
+def acc_requests_req(parent_folder: Path, val_dict: dict, overall_lines: List[str], req_lines: List[str],
                           bus_names: List[str]):
+    network_name = str(parent_folder).split("/")[-3]
     req_cell = [x for x in overall_lines if "Number of Requests accepted:" in x]
     number_req = len(req_lines) - 1
-    number_denied_req = number_req - int(req_cell[0].split(" ")[-1])
+    acc_req = int(req_cell[0].split(" ")[-1])
 
-    density = number_req / get_time_window_length(bus_names, parent_folder)
-    if density in val_dict:
-        val_dict[density].append(number_denied_req)
-    else:
-        val_dict[density] = [number_denied_req]
+    add_to_dict(network_name, number_req, acc_req, val_dict)
 
 
-def density_computation_times(parent_folder: Path, val_dict: dict, overall_lines: List[str], req_lines: List[str], bus_names: List[str]):
+def req_computation_times(parent_folder: Path, val_dict: dict, overall_lines: List[str], req_lines: List[str], bus_names: List[str]):
     # req_cell = [x for x in overall_lines if "Number of Requests accepted:" in x]
+    network_name = str(parent_folder).split("/")[-3]
     number_requests = len(req_lines) - 1
-
-    density = number_requests / get_time_window_length(bus_names, parent_folder)
 
     interesting_lines = [x for x in overall_lines if "computation time" in x]
     comp_time = 0
     for t in interesting_lines:
         comp_time += Timer.conv_string_2_time(t.split(" ")[-1]).get_in_seconds()
     if True:
-        if density in val_dict:
-            val_dict[density].append(comp_time)
-        else:
-            val_dict[density] = [comp_time]
+        add_to_dict(network_name, number_requests, comp_time, val_dict)
 
 def event_graph_to_comp_time(parent_folder: Path, val_dict: dict, overall_lines: List[str], req_lines: List[str], bus_names: List[str]):
     interesting_lines = [x for x in overall_lines if "Event Graph Nodes:" in x]
@@ -111,7 +111,7 @@ def density_event_nodes(parent_folder: Path, val_dict: dict, overall_lines: List
     # req_cell = [x for x in overall_lines if "Number of Requests accepted:" in x]
     number_requests = len(req_lines) - 1
 
-    density = number_requests / get_time_window_length(bus_names, parent_folder)
+    density = number_requests / float(parent_folder.name[1])
 
     interesting_lines = [x for x in overall_lines if "Event Graph Nodes:" in x]
     nNodes = int(interesting_lines[0].split(" ")[-1])
@@ -122,11 +122,11 @@ def density_event_nodes(parent_folder: Path, val_dict: dict, overall_lines: List
         val_dict[density] = [nNodes]
 
 
-def rec_check_folder(folder: Path, val_dict: Dict[int, List[List[str]]]):
+def rec_check_folder(folder: Path, val_dict: Dict[str, Dict[int, List[float]]], duration: int):
     files = list()
     for item in folder.iterdir():
         if item.is_dir():
-            rec_check_folder(item, val_dict)
+            rec_check_folder(item, val_dict, duration)
         if item.is_file():
             files.append(item.name)
 
@@ -145,15 +145,16 @@ def rec_check_folder(folder: Path, val_dict: Dict[int, List[List[str]]]):
         r_lines = r_f.readlines()
         r_f.close()
 
-        denied_req_density(folder, val_dict, o_lines, r_lines, bus_files)
+        if duration is None or int(folder.name[1]) == duration:
+            acc_requests_req(folder, val_dict, o_lines, r_lines, bus_files)
 
 
 # method receives path to folder root -> searches all subdirectories, looking for overall/request file -> extracts some value and makes plots
-def aggregate_tests(folder_path: str, figure, color_str: str):
+def aggregate_tests(folder_path: str, figure, color_str: str, duration: int=None):
     root_folder = Path(folder_path)
     val_dict = {}
 
-    rec_check_folder(root_folder, val_dict)
+    rec_check_folder(root_folder, val_dict, duration)
 
     x = list()
     y = list()
@@ -164,6 +165,29 @@ def aggregate_tests(folder_path: str, figure, color_str: str):
             y.append(val)
 
     figure.plot(x, y, 'o', color=color_str, label=folder_path.split("/")[-1])
+
+# method receives path to folder root -> searches all subdirectories, looking for overall/request file -> extracts some value and makes plots
+def aggregate_difference(folder_path_1: str, folder_path_2: str, figure, duration: int = None):
+    root_folder_1 = Path(folder_path_1)
+    val_dict = {}
+
+    rec_check_folder(root_folder_1, val_dict, duration)
+
+    root_folder_2 = Path(folder_path_2)
+    rec_check_folder(root_folder_2, val_dict, duration)
+
+    short_colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+    i = 0
+
+    # val_dict:[network_name, [number requests, List[value]]]
+    for network in val_dict.keys():
+        x = list()
+        y = list()
+        for numbRequests in val_dict[network].keys():
+            x.append(numbRequests)
+            y.append(val_dict[network][numbRequests][1] - val_dict[network][numbRequests][0])
+        figure.plot(x, y, 'o', color=short_colors[i], label=network)
+        i += 1
 
 def find_output_path(base_output_path: str):
     max_number = 0
@@ -181,22 +205,28 @@ def find_output_path(base_output_path: str):
 
 
 fig, ax = plt.subplots()
-use_path = "../output/InterestingOutput/SingleObj"
-start_folder = Path(use_path)
-short_colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
-i = 0
+#use_path = "../output/InterestingOutput/SingleObj"
+#start_folder = Path(use_path)
 
+#i = 0
+'''
 for item in start_folder.iterdir():
     if item.is_dir():
         aggregate_tests(use_path + "/" + item.name, ax, short_colors[i])
         i += 1
+'''
 
-#aggregate_tests("../output/InterestingOutput/SingleObj", ax, "blue")
-#aggregate_tests("../output/InterestingOutput/MultiObj_1", ax, "red")
+ax.axhline(y=0.0, color='gray', linestyle='--', linewidth=1)
+#ax.set_yscale('log')
+#ax.yaxis.set_major_formatter(ScalarFormatter())
+#ax.yaxis.set_minor_formatter(ScalarFormatter())
 
-ax.set_title("Density to Denied Requests")
-ax.set_xlabel("Density")
-ax.set_ylabel("Number of Denied Requests")
+aggregate_difference("../output/InterestingOutput/MultiObj", "../output/InterestingOutput/SingleObj", ax,3)
+
+
+ax.set_title("Difference in Accepted Requests - 3 hours length")
+ax.set_xlabel("Number Requests")
+ax.set_ylabel("Difference Accepted Requests(Single - Multi)")
 
 ax.legend()
 plt.savefig(find_output_path("../output/InterestingOutput/agg_plots"))
