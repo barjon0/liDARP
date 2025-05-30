@@ -9,8 +9,8 @@ Number of Requests accepted: 30
 Relative MIP Gap Number Requests: 0
 Relative MIP Gap KM travelled: 0
 Number of Split Requests: 125
-Event Graph Nodes: 603
-Event Graph Edges: 3723
+Event Graph Nodes: 627
+Event Graph Edges: 3770
 computation time for reading in: 00:00:00
 computation time for building event graph: 00:00:00
 computation time for building model: 00:00:00

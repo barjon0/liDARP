@@ -61,7 +61,7 @@ class CplexSolver:
 
         else:
             model.objective.set_sense(model.objective.sense.minimize)
-            penalty = int(4 * Helper.calc_total_network_size(lines)) * len(self.requests) * len(self.buses) ** 2
+            penalty = int(3 * Helper.calc_total_network_size(lines)) * len(self.requests)
             obj_pairs = [(f"q_{x.id}", -penalty) for x in self.requests]
             for first_event in self.event_graph.edge_dict.keys():
                 for second_event in self.event_graph.edge_dict[first_event][1]:
@@ -327,7 +327,7 @@ class CplexSolver:
             self.model.parameters.mip.tolerances.mipgap.set(0.0)
             self.model.parameters.timelimit.set(900 - int(Global.COMPUTATION_TIME_SOLVING_FIRST))
 
-            self.model.parameters.mip.strategy.nodeselect.set(2)
+            # self.model.parameters.mip.strategy.nodeselect.set(2)
             # self.model.parameters.mip.strategy.lbheur.set(1)
             # self.model.parameters.mip.strategy.rinsheur.set(50)
             # self.model.parameters.mip.cuts.gomory.set(2)

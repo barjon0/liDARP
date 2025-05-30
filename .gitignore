@@ -78,10 +78,6 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-cplex.log
-flake.lock
-flake.nix
-
 # IPython
 profile_default/
 ipython_config.py

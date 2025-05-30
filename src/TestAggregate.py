@@ -192,7 +192,7 @@ for item in start_folder.iterdir():
         i += 1
 
 #aggregate_tests("../output/InterestingOutput/SingleObj", ax, "blue")
-#aggregate_tests("../output/InterestingOutput/MultiObj", ax, "red")
+#aggregate_tests("../output/InterestingOutput/MultiObj_1", ax, "red")
 
 ax.set_title("Density to Denied Requests")
 ax.set_xlabel("Density")

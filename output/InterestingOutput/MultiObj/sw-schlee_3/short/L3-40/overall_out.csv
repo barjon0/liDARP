@@ -7,12 +7,12 @@ vehicle utilization: 1.423
 empty km share: 0.451
 Number of Requests accepted: 39
 Relative MIP Gap Number Requests: 0
-Relative MIP Gap KM travelled: 2
+Relative MIP Gap KM travelled: 8
 Number of Split Requests: 135
-Event Graph Nodes: 1632
-Event Graph Edges: 6156
+Event Graph Nodes: 1648
+Event Graph Edges: 6181
 computation time for reading in: 00:00:00
 computation time for building event graph: 00:00:00
 computation time for building model: 00:00:00
-computation time for solving first model: 00:04:12
-computation time for solving second model: 00:10:48
+computation time for solving first model: 00:06:36
+computation time for solving second model: 00:08:24
