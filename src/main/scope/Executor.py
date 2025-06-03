@@ -49,6 +49,8 @@ class Executor:
 
             for u_dropped in r_stop.drop_off:
                 if u_dropped not in self.passengers[r_stop.bus]:
+                    for a_stop in done_r_stops:
+                        print(a_stop)
                     raise ValueError(f"User {u_dropped.id} not supposed to be in bus")
                 else:
                     self.passengers[r_stop.bus].remove(u_dropped)

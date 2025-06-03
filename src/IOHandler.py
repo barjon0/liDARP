@@ -282,6 +282,7 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
 
     for req in requests:
         if req.act_start_time is not None:
+            # TODO wrong way to calculate the booked km
             km_booked += Timer.conv_time_to_dist(req.fastest_time - (Global.TRANSFER_SECONDS * req.numb_transfer))
             request_stop_dict[req] = [(req.act_start_time, req.pick_up_location.id, -1)]
         else:

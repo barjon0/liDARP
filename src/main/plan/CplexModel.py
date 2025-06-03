@@ -425,6 +425,7 @@ class CplexSolver:
                     curr_route_stop = RouteStop(idle_event.location, bus.line.start_time,
                                                 Timer.create_time_object(time_var - Global.TRANSFER_SECONDS - duration
                                                 + self.time_const_maker.add_value(next_event.first, True)), bus)
+                    bus_plan.stop_list.append(curr_route_stop)
 
                     while next_event is not idle_event:
                         # check selected option for request -> if event fits with option:
@@ -436,7 +437,6 @@ class CplexSolver:
                             z_options[z_options_vals_round.index(1)]]:
 
                             if next_event.location != curr_route_stop.stop:
-                                bus_plan.stop_list.append(curr_route_stop)
 
                                 duration = Timer.calc_time(
                                     Helper.calc_distance(curr_route_stop.stop, next_event.location))
@@ -448,6 +448,7 @@ class CplexSolver:
                                                                     Timer.create_time_object(
                                                                         time_var + self.time_const_maker.add_value(
                                                                             next_event.first, True)), bus)
+                                        bus_plan.stop_list.append(curr_route_stop)
                                         curr_route_stop.pick_up.add(next_event.first.parent)
                                         processed_pick_up.add(next_event.first)
                                     else:
@@ -460,6 +461,7 @@ class CplexSolver:
                                                                     Timer.create_time_object(
                                                                         time_var + self.time_const_maker.add_value(
                                                                             next_event.first, False)), bus)
+                                        bus_plan.stop_list.append(curr_route_stop)
                                         curr_route_stop.drop_off.add(next_event.first.parent)
                                         processed_drop_off.add(next_event.first)
                                     else:
@@ -496,9 +498,7 @@ class CplexSolver:
                     # handle final idle_event stop
                     if curr_route_stop.stop == bus.line.depot:
                         curr_route_stop.depart_time = bus.line.end_time
-                        bus_plan.stop_list.append(curr_route_stop)
                     else:
-                        bus_plan.stop_list.append(curr_route_stop)
                         duration = Timer.calc_time(Helper.calc_distance(curr_route_stop.stop, next_event.location))
                         bus_plan.stop_list.append(
                             RouteStop(next_event.location, curr_route_stop.depart_time.add_seconds(duration),

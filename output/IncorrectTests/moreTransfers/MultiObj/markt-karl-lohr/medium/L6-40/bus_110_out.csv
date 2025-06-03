@@ -1,0 +1,4 @@
+number,stop ID,arrival time,departure time,pick up users,drop of users
+1,8,07:00:00,10:26:39,[],[]
+2,7,10:32:02,10:54:23,['35'],[]
+3,8,10:59:46,19:00:00,[],['35']
