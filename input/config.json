@@ -1,8 +1,8 @@
 {
-  "pathRequestFile": "../input/requests/random_requests/markt-karl-lohr/long_window/L9-26-80.csv",
-  "pathNetworkFile": "../input/bus_networks/real_networks/markt-karl-lohr.json",
+  "pathRequestFile": "../input/requests/random_requests/sw-schlee_2/short_window/L3-14-10.csv",
+  "pathNetworkFile": "../input/bus_networks/real_networks/sw-schlee_2.json",
   "pathCPLEX": "/run/current-system/sw/bin/cplex",
-  "outputPath": "../output/InterestingOutput/MultiObj/markt-karl-lohr/long",
+  "outputPath": "../output",
   "context": "static",
   "solver": "eventMILP",
   "averageKmH": 65,

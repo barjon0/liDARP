@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CsvFileAttributes">
+    <option name="attributeMap">
+      <map>
+        <entry key="\input\requests\random_requests\markt-karl\medium_window\L6-15-20.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\input\requests\random_requests\sw-schlee_2\long_window\L9-14-60.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\input\requests\random_requests\sw-schlee_2\short_window\L3-14-20.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\input\requests\test_requests\circle.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\input\requests\test_requests\single.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\input\requests\test_requests\transfer.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\markt-karl\long\L9-80\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\markt-karl\long\L9-90\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\markt-karl\medium\L6-70\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\markt-karl\medium\L6-80\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\markt-karl\short\L3-40\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\markt-karl\short\L3-50\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\markt-karl\short\L3-60\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\sw-schlee_2\long\L9-40\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\sw-schlee_2\long\L9-40\requests_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\sw-schlee_full\short\L3-50\bus_192_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\sw-schlee_full\short\L3-50\requests_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\IncorrectTests\SolvedOptimally\sw-schlee_full\short\L3-60_bad\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\MultiObj\markt-karl\medium\L6-40\bus_21_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\MultiObj\sw-geo_full\medium\L6-70\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\MultiObj\sw-schlee_2\long\L9-20\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\MultiObj\sw-schlee_2\short\L3-50\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\markt-karl-lohr\medium\L6-10\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\markt-karl-lohr\medium\L6-70\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-geo_2\medium\L6-90\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-geo_2\medium\L6-90\requests_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-geo_2\short\L3-60\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_3\short\L3-10\bus_14_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_3\short\L3-10\bus_18_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_3\short\L3-10\bus_19_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_3\short\L3-10\bus_24_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_3\short\L3-10\bus_28_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_3\short\L3-10\bus_29_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_3\short\L3-10\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_3\short\L3-10\requests_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_full\medium\L6-90\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\output\InterestingOutput\SingleObj\sw-schlee_full\short\L3-60\overall_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value=":" />
+            </Attribute>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

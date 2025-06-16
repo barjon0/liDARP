@@ -200,7 +200,8 @@ def main(path_2_config: str):
         f"Done with reading in; finding shortest routes and all route options after {Global.COMPUTATION_TIME_READING} seconds.")
     Global.COMPUTATION_START_TIME = time.time()
 
-    #output_network({x.line for x in network})
+    output_network({x.line for x in network})
+    # print(f"Network Size: {Helper.calc_total_network_size({x.line for x in network})}")
 
     context.start_context()
 
@@ -234,8 +235,11 @@ def find_output_path(base_output_path: str):
 def output_network(lines: Set[Line]):
     # create pyplot of stops and lines
     all_stop_cords: Set[Stop] = set()
+    transfer_points = set()
     for line in lines:
         all_stop_cords |= set(line.stops)
+        for lB in (lines - {line}):
+            transfer_points |= set(line.stops) & set(lB.stops)
     all_stop_cords_list = list(all_stop_cords)
 
     x = [i.coordinates[0] for i in all_stop_cords_list]
@@ -243,15 +247,29 @@ def output_network(lines: Set[Line]):
 
     plt.plot(x, y, 'ro')
 
+    xT = [i.coordinates[0] for i in transfer_points]
+    yT = [i.coordinates[1] for i in transfer_points]
+
     color_set = ['red', 'green', 'blue', 'yellow', 'black', 'purple', 'pink', 'brown'] * 3
     color_iter = iter(color_set)
+    ia = 0
     for line in lines:
         color_name = next(color_iter)
         for i in range(len(line.stops) - 1):
             x1, y1 = line.stops[i].coordinates
             x2, y2 = line.stops[i + 1].coordinates
-            plt.plot([x1, x2], [y1, y2], marker='x', color=color_name)
+            if ia == 0:
+                plt.plot([x1, x2], [y1, y2], marker='o', color=color_name, label=line.id)
+                ia = 1
+            else:
+                plt.plot([x1, x2], [y1, y2], marker='o', color=color_name)
+        ia = 0
 
+    plt.plot(xT, yT, 'o', color="lightgreen", markersize=10)
+
+    plt.ylim([1, 12])
+    plt.xlim([-1, 20])
+    plt.legend()
     plt.show()
 
 
@@ -342,6 +360,7 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
     try:
         overall_numbers.append([f"system efficiency: {round(km_booked / km_travel_total, 3)}"])
         overall_numbers.append([f"deviation factor: {round(acc_km_req / km_booked, 3)}"])
+        #TODO fix utilization
         overall_numbers.append([f"vehicle utilization: {round(acc_km_req / km_used_total, 3)}"])
         overall_numbers.append([f"empty km share: {round(km_empty_total / km_travel_total, 3)}"])
         overall_numbers.append([f"Number of Requests accepted: {count_accepted}"])
