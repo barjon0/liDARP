@@ -4,7 +4,7 @@ import sys
 import os
 import time
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from typing import List, Dict, Tuple, Set
 
 from utils import Global
@@ -166,13 +166,13 @@ def fill_time_windows(request: Request, split_req_list: List[SplitRequest]):
             split_req.latest_start_time = prop_time_lat_start
 
 
-def main(path_2_config: str):
+def main(path_2_config: str, path_to_req, speed: float, unitDist: float, output_path_full):
     with open(path_2_config, 'r') as config_file:
         config: dict = json.load(config_file)
 
     Global.COMPUTATION_START_TIME = time.time()
-    Global.AVERAGE_KMH = config.get('averageKmH')
-    Global.KM_PER_UNIT = config.get('KmPerUnit')
+    Global.AVERAGE_KMH = speed
+    Global.KM_PER_UNIT = unitDist
     Global.COST_PER_KM = config.get('costPerKM')
     Global.CO2_PER_KM = config.get('co2PerKM')
     Global.CAPACITY_PER_LINE = config.get('capacityPerLine')
@@ -182,9 +182,15 @@ def main(path_2_config: str):
     Global.TIME_WINDOW_SECONDS = config.get('timeWindowMinutes') * 60
     Global.CPLEX_PATH = config.get('pathCPLEX')
 
-    request_path: str = config.get('pathRequestFile')
+    request_path: str = path_to_req
     network_path: str = config.get('pathNetworkFile')
-    output_path: str = config.get('outputPath')
+    print(path_to_req)
+
+    network_name = path_to_req.split("\\")[-3]
+    network_file_path = "../input/bus_networks/real_networks"
+    network_path: str = network_file_path + "\\" + network_name + ".json"
+    output_path: str = output_path_full
+
     context_str: str = config.get('context')
     solver_str: str = config.get('solver')
 
@@ -200,7 +206,7 @@ def main(path_2_config: str):
         f"Done with reading in; finding shortest routes and all route options after {Global.COMPUTATION_TIME_READING} seconds.")
     Global.COMPUTATION_START_TIME = time.time()
 
-    output_network({x.line for x in network})
+    #output_network({x.line for x in network})
     # print(f"Network Size: {Helper.calc_total_network_size({x.line for x in network})}")
 
     context.start_context()
@@ -231,7 +237,7 @@ def find_output_path(base_output_path: str):
 
     return result_path
 
-
+'''
 def output_network(lines: Set[Line]):
     # create pyplot of stops and lines
     all_stop_cords: Set[Stop] = set()
@@ -245,32 +251,39 @@ def output_network(lines: Set[Line]):
     x = [i.coordinates[0] for i in all_stop_cords_list]
     y = [i.coordinates[1] for i in all_stop_cords_list]
 
-    plt.plot(x, y, 'ro')
+    #plt.plot(x, y, 'ro')
 
     xT = [i.coordinates[0] for i in transfer_points]
     yT = [i.coordinates[1] for i in transfer_points]
 
-    color_set = ['red', 'green', 'blue', 'yellow', 'black', 'purple', 'pink', 'brown'] * 3
-    color_iter = iter(color_set)
+    #color_set = ['red', 'green', 'blue', 'yellow', 'black', 'purple', 'pink', 'brown'] * 3
+    color_set2 = ['green', 'blue', 'black']
+    color_iter = iter(color_set2)
     ia = 0
-    for line in lines:
+    line_order = list(lines)
+    line_order.sort(key=lambda x: x.id, reverse=True)
+
+    for line in line_order:
         color_name = next(color_iter)
         for i in range(len(line.stops) - 1):
             x1, y1 = line.stops[i].coordinates
             x2, y2 = line.stops[i + 1].coordinates
             if ia == 0:
-                plt.plot([x1, x2], [y1, y2], marker='o', color=color_name, label=line.id)
+                plt.plot([x1, x2], [y1, y2], marker='s', color=color_name, label=line.id)
                 ia = 1
             else:
-                plt.plot([x1, x2], [y1, y2], marker='o', color=color_name)
+                plt.plot([x1, x2], [y1, y2], marker='s', color=color_name)
         ia = 0
 
-    plt.plot(xT, yT, 'o', color="lightgreen", markersize=10)
+    plt.plot(xT, yT, 's', color="lightgreen", markersize=10)
 
-    plt.ylim([1, 12])
-    plt.xlim([-1, 20])
+    plt.ylim([-5, 20])
+    plt.xlim([-5, 20])
+    plt.xticks(ticks=plt.xticks()[0], labels=[])
+    plt.yticks(ticks=plt.yticks()[0], labels=[])
     plt.legend()
     plt.show()
+    '''
 
 
 def create_output(requests: Set[Request], plans: List[Route], base_output_path: str):
@@ -383,8 +396,8 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         f"computation time for solving second model: {time.strftime('%H:%M:%S', time.gmtime(Global.COMPUTATION_TIME_SOLVING_SECOND))}"])
 
     path_to_output = find_output_path(base_output_path)
-    fig = visualize_plan(plans, lines)
-    fig.savefig(f"{path_to_output}/plan.png")
+    #fig = visualize_plan(plans, lines)
+    #fig.savefig(f"{path_to_output}/plan.png")
 
     for bus in buses:
         with open(f"{path_to_output}/bus_{bus.id}_out.csv", mode="w", newline="", encoding="utf-8") as file:
@@ -399,7 +412,7 @@ def create_output(requests: Set[Request], plans: List[Route], base_output_path: 
         writer = csv.writer(file)
         writer.writerows(overall_numbers)
 
-
+'''
 def visualize_plan(plan: List[Route], lines: Set[Line]):
     # count occurence of each segment -> calc overall km and normalize
     segment_dict: Dict[frozenset[Stop], list] = {}  # dictionary for segment in network, count occurence
@@ -449,12 +462,14 @@ def visualize_plan(plan: List[Route], lines: Set[Line]):
     ax.plot(x, y, 'ko')
 
     return fig
+    '''
+
 
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         # The first argument is the file path
         config_path = sys.argv[1]
-        main(config_path)
+        main(config_path, sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), sys.argv[5])
     else:
         print("Please provide the file path to the config file as an argument.")

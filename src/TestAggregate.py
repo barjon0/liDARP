@@ -136,18 +136,18 @@ def requests_to_efficiency(parent_folder: Path, val_dict: dict, overall_lines: L
     '''
     interesting_lines = [x for x in overall_lines if "computation time" in x]
     comp_time = 0
-    for t in interesting_lines[0:3]:
+    for t in interesting_lines[3:]:
         comp_time += Timer.conv_string_2_time(t.split(" ")[-1]).get_in_seconds()
     #length = read_Length(network_name)
-    interesting_lines2 = [x for x in overall_lines if "Relative MIP Gap Number Requests:" in x]
+    interesting_lines2 = [x for x in overall_lines if "system efficiency:" in x]
     val2 = float(interesting_lines2[0].split(" ")[-1])
-    interesting_lines = [x for x in overall_lines if "Number of Requests accepted:" in x]
-    val = float(interesting_lines[0].split(" ")[-1])
+    #interesting_lines = [x for x in overall_lines if "Number of Requests accepted:" in x]
+    #val = float(interesting_lines[0].split(" ")[-1])
     #km_booked = calculate_km_booked_instance(network_name, req_lines)
-    acc_req = val * 100 / number_req
+    #acc_req = val * 100 / number_req
     #if val2 == 0.0:
-    print(f"Denied in %: {acc_req}; Mip GAp:  {val2}; network: {network_name}; req: {number_req}")
-    add_to_dict(network_name, number_req, time_span, comp_time, val_dict)
+    #print(f"Denied in %: {acc_req}; Mip GAp:  {val2}; network: {network_name}; req: {number_req}")
+    add_to_dict(network_name, number_req, time_span, val2, val_dict)
 
 
 def event_graph_to_comp_time(parent_folder: Path, val_dict: dict, overall_lines: List[str], req_lines: List[str], bus_names: List[str]):
@@ -163,7 +163,7 @@ def event_graph_to_comp_time(parent_folder: Path, val_dict: dict, overall_lines:
     for t in interesting_lines:
         comp_time += Timer.conv_string_2_time(t.split(" ")[-1]).get_in_seconds()
 
-    add_to_dict(network_name, nNodes, edges, comp_time, val_dict)
+    add_to_dict(network_name, nNodes, edges, [nNodes, edges, comp_time], val_dict)
 
 def get_val(line: List[str]):
     return line[0].split(" ")[-1]
@@ -179,13 +179,13 @@ def read_DARP(parent_folder: Path, val_dict: dict, overall_lines: List[str], fil
         interest_line_1 = [x for x in overall_lines if "System efficiency" in x]
         val = float(interest_line_1[0].split(" ")[-1])
 
-        interest_line_2 = [x for x in overall_lines if "Number rejected requests" in x]
-        val_2 = float(interest_line_2[0].split(" ")[-1])
+        interest_line_2 = [x for x in overall_lines if "EntireModel time (ms)" in x]
+        val_2 = float(interest_line_2[0].split(" ")[-1]) / 1000.0
 
-        per = (number_req - val_2) * 100 / float(number_req)
+        #per = (number_req - val_2) * 100 / float(number_req)
         #sys_eff = float(get_val(sys_eff_line)[0:-2])
         #if val < 0.2:
-        add_to_dict(network_name, number_req, time_span, val, val_dict)
+        add_to_dict(network_name, number_req, time_span, val_2, val_dict)
     else:
         print(f"network name {network_name}; numb_req: {number_req}; time_span: {time_span}")
 
@@ -214,7 +214,7 @@ def rec_check_folder(folder: Path, val_dict: Dict[str, Dict[int, List[float]]], 
         r_f.close()
 
         if duration is None or int(folder.name[1]) == duration:
-            requests_to_efficiency(folder, val_dict, o_lines, r_lines, bus_files)
+            event_graph_to_comp_time(folder, val_dict, o_lines, r_lines, bus_files)
 
 def rec_check_folder_DARP(parent_folder, val_dict, duration):
     files = list()
@@ -261,19 +261,22 @@ def aggregate_tests(folder_path: str, figure, duration: int=None):
     i = 0
     n = 0
     sumAll = 0
+    x = list()
+    y = list()
+    z = list()
     n_list = sorted(list(val_dict.keys()))
     for key in n_list:
-        x = list()
-        y = list()
         key_list = sorted(list(val_dict[key].keys()), key=lambda x: x[0])
         for val in key_list:
-            if val_dict[key][val][0] > sumAll:
-                sumAll = val_dict[key][val][0]
-            x.append(val[0] / val[1])
-            y.append(val_dict[key][val][0])
-        figure.plot(x, y, 'o', color=short_colors[i], label=key)
-        i += 1
-    print("number instances: " + str(sumAll))
+            #if val_dict[key][val][0] > sumAll:
+            #    sumAll = val_dict[key][val][0]
+            x.append(val_dict[key][val][0][0])
+            y.append(val_dict[key][val][0][1])
+            z.append(val_dict[key][val][0][2])
+    sc = ax.scatter(x, y, c=z, cmap='viridis')
+    cbar = fig.colorbar(sc, ax=ax)
+    cbar.set_label('seconds')
+    #print("number instances: " + str(sumAll))
 
 # method receives path to folder root -> searches all subdirectories, looking for overall/request file -> extracts some value and makes plots
 def aggregate_difference(folder_path_1: str, folder_path_DARP: str, figure, duration: int = None):
@@ -303,9 +306,9 @@ def aggregate_difference(folder_path_1: str, folder_path_DARP: str, figure, dura
                 dens = tup[0] / tup[1]
                 val = val_dict[network][tup][1] - val_dict[network][tup][0]
                 n += 1
-                if val < 0:
-                    sumVal += val
+                if val <= -1:
                     count += 1
+                    sumVal += val
                 x.append(dens)
                 y.append(val)
         figure.plot(x, y, 'o', color=short_colors[i], label=network)
@@ -330,7 +333,7 @@ def find_output_path(base_output_path: str):
 
 
 fig, ax = plt.subplots()
-ax.set_ylim(1, 10**6)
+#ax.set_ylim(-0.1, 1.5)
 #use_path = "../output/InterestingOutput/SingleObj"
 #start_folder = Path(use_path)
 
@@ -342,18 +345,19 @@ for item in start_folder.iterdir():
         i += 1
 '''
 
-#ax.axhline(y=0.0, color='gray', linestyle='--', linewidth=1)
+#ax.axhline(y=1.0, color='gray', linestyle='--', linewidth=1)
 ax.set_yscale('log')
+ax.set_xscale('log')
 #ax.yaxis.set_major_formatter(ScalarFormatter())
 #ax.yaxis.set_minor_formatter(ScalarFormatter())
 
 #aggregate_difference("../output/InterestingOutput/SingleObj", "../output/InterestingOutput/DARP_0", ax, None)
 aggregate_tests("../output/InterestingOutput/SingleObj", ax, None)
 
-ax.set_title("Number Event Arcs liDARPT")
-ax.set_xlabel("Density (Requests / time span length)")
-#ax.set_xlabel("Number of Requests")
-ax.set_ylabel("Event Arcs")
+ax.set_title("Event Graph Size to Computation Time")
+#ax.set_xlabel("Density (Requests / time span length)")
+ax.set_xlabel("Number of Nodes")
+ax.set_ylabel("Number of Edges")
 
-ax.legend()
-plt.savefig(find_output_path("../output/InterestingOutput/agg_plots"))
+#ax.legend()
+plt.savefig(find_output_path("../output/InterestingOutput/agg_plots"), bbox_inches='tight')

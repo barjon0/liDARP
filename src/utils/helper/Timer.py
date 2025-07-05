@@ -78,7 +78,7 @@ class TimeImpl:
             return False
 
     def __gt__(self, other):
-        assert isinstance(other, TimeImpl)
+        assert isinstance(other, TimeImpl), f"Assertion failed: other is: {other} of type: {type(other)}"
         if self.get_in_seconds() > other.get_in_seconds():
             return True
         else:

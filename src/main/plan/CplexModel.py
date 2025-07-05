@@ -249,12 +249,15 @@ class CplexSolver:
                 for i in range(0, len(req.split_requests[key]) - 1):
                     prev_split = req.split_requests[key][i]
                     sub_split = req.split_requests[key][i + 1]
-                    var_names = [f"B_{prev_split.split_id}-", f"B_{sub_split.split_id}+"]
+                    var_names = [f"B_{prev_split.split_id}-", f"B_{sub_split.split_id}+", f"z_{req.id},{key}"]
+                    if prev_split.latest_arr_time > sub_split.latest_start_time:
+                        print("aua - das tut weh")
+                    sub_m = max(0, (prev_split.latest_arr_time - sub_split.earl_start_time).get_in_seconds())
                     model.linear_constraints.add(
-                        lin_expr=[cplex.SparsePair(ind=var_names, val=[-1, 1])],
+                        lin_expr=[cplex.SparsePair(ind=var_names, val=[-1, 1, -sub_m])],
                         senses=["G"],
                         rhs=[self.time_const_maker.add_value(prev_split, False) - self.time_const_maker.add_value(
-                            sub_split, True)]
+                            sub_split, True) - sub_m]
                     )
 
             # z variables for request sum to p_r

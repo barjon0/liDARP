@@ -1,6 +1,6 @@
 {
-  "pathRequestFile": "../input/requests/random_requests/sw-schlee_2/short_window/L3-14-10.csv",
-  "pathNetworkFile": "../input/bus_networks/real_networks/sw-schlee_2.json",
+  "pathRequestFile": "../input/requests/random_requests/sw-schlee_full/medium_window/L6-28-90.csv",
+  "pathNetworkFile": "../input/bus_networks/real_networks/sw-schlee_full.json",
   "pathCPLEX": "/run/current-system/sw/bin/cplex",
   "outputPath": "../output",
   "context": "static",
