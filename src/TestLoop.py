@@ -3,7 +3,7 @@ import subprocess
 import re
 import sys
 
-OUTPUT_PATH = "../output/InterestingOutput/liDARPT_3/"
+OUTPUT_PATH = "../output/InterestingOutput/liDARPT_5/"
 def run_python_code(full_path, file_name):
     speed = None
     unitDist = None
@@ -36,4 +36,4 @@ def walk_and_run(directory):
             print("Found file: ", full_path)
             run_python_code(full_path, file_name)
 
-walk_and_run(r"../input/requests/less_random_requests/sw-schlee_full")
+walk_and_run(r"../input/requests/requests_4")
