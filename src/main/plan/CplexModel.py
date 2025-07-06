@@ -19,7 +19,7 @@ class CplexSolver:
         self.requests = requests
         self.buses = bus_list
         self.time_const_maker = RelativeConstraints()
-        self.multi_objective = True
+        self.multi_objective = False
         self.model = self.build_model()
 
     def build_model(self):

@@ -186,9 +186,9 @@ def main(path_2_config: str, path_to_req, speed: float, unitDist: float, output_
     network_path: str = config.get('pathNetworkFile')
     print(path_to_req)
 
-    network_name = path_to_req.split("\\")[-3]
+    network_name = path_to_req.split("/")[-3]
     network_file_path = "../input/bus_networks/real_networks"
-    network_path: str = network_file_path + "\\" + network_name + ".json"
+    network_path: str = network_file_path + "/" + network_name + ".json"
     output_path: str = output_path_full
 
     context_str: str = config.get('context')
