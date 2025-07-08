@@ -152,7 +152,8 @@ def find_split_requests(request: Request, network_graph: LineGraph) -> List[List
 
     # fill dict of LineEdge to SplitRequest for all aggregated routes in network
     agg_edges_dict: Dict[LineEdge, SplitRequest] = {}
-    for agg_edge in network_graph.get_edges():
+    net_graph_edges = sorted(list(network_graph.get_edges()), key=lambda x: hash(x))
+    for agg_edge in net_graph_edges:
         agg_edges_dict[agg_edge] = SplitRequest(request, agg_edge.v1, agg_edge.v2, agg_edge.line,
                                                 request.number_of_passengers)
 
@@ -182,6 +183,14 @@ def get_event_window(event_user: SplitRequest, other_users: Set[SplitRequest], e
     curr_stop: Stop
     earl_time: TimeImpl
     latest_time: TimeImpl
+
+    checker = False
+    if event_user.id == 11 and event_user.line.id == 8134 and event_user.drop_off_location.id == 4:
+        other:SplitRequest = list(other_users)[0]
+        if len(other_users) == 1 and other.id == 3 and other.drop_off_location.id == 4:
+            checker = True
+            print("Found himmmmmmmmm")
+            print(f"The split has lat arr time: {other.latest_arr_time}")
 
     all_users = other_users | {event_user}
     stops: Set[Stop] = {x.drop_off_location for x in all_users}
@@ -221,6 +230,8 @@ def get_event_window(event_user: SplitRequest, other_users: Set[SplitRequest], e
                     curr_time = user.earl_start_time
             for user in pick_up_users:
                 if curr_time > user.latest_start_time:
+                    if checker:
+                        print("earliest start times were the problem")
                     return None, None
             curr_stop = key
             curr_time = curr_time.add_seconds(Global.TRANSFER_SECONDS)
@@ -254,14 +265,21 @@ def get_event_window(event_user: SplitRequest, other_users: Set[SplitRequest], e
                     latest_time = poss_time
 
                 if curr_time > user.latest_arr_time:
+                    if checker:
+                        print(f"current time was: {curr_time} while latest arrival time of {user.id} was {user.latest_arr_time}")
+                        print("latest arrival times fucked it")
                     return None, None
             curr_stop = key
             curr_time = curr_time.add_seconds(Global.TRANSFER_SECONDS)
             rem_travel_time += Global.TRANSFER_SECONDS
 
     if earl_time > latest_time:
+        if checker:
+            print("final times were not compatible")
         return None, None
     else:
+        if checker:
+            print("it did work")
         return earl_time, latest_time
 
 

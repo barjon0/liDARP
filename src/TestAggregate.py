@@ -1,15 +1,13 @@
 import json
 import math
 from pathlib import Path
-from platform import system
 from typing import Dict, List
 import re
 
 from matplotlib import pyplot as plt
 
-from utils.helper import Timer, Helper
+from utils.helper import Timer
 from utils.helper.Timer import TimeImpl
-from utils.network.Bus import Bus
 from utils.network.Stop import Stop
 
 translate_km = {"markt-karl": 2, "markt-karl-lohr": 2, "sw-geo_2": 3, "sw-geo_full": 3, "sw-schlee_2": 1.5, "sw-schlee_3": 1.5, "sw-schlee_full": 1.5}

@@ -3,7 +3,7 @@ import subprocess
 import re
 import sys
 
-OUTPUT_PATH = "../output/InterestingOutput/liDARPT_5/"
+OUTPUT_PATH = "../output/InterestingOutput/liDARPT_4/"
 def run_python_code(full_path, file_name):
     speed = None
     unitDist = None
@@ -21,7 +21,7 @@ def run_python_code(full_path, file_name):
         raise ValueError
 
     env = os.environ.copy()  # start with the current environment
-    env["PYTHONPATH"] = "HOME/s388381/liDARP/venv/lib/python3.10/site-packages"
+    env["PYTHONPATH"] = "/HOME/s388381/liDARP/venv/lib/python3.10/site-packages"
     #env["CPLEX_STUDIO_DIR201"] = "/opt/ibm/ILOG/CPLEX_Studio201"
     network_name = re.split(r"[\\/]", full_path)[-3]
     length_word = re.split(r"[\\/]", full_path)[-2]
@@ -36,4 +36,5 @@ def walk_and_run(directory):
             print("Found file: ", full_path)
             run_python_code(full_path, file_name)
 
-walk_and_run(r"../input/requests/requests_4")
+walk_and_run(r"../input/requests/requests_5")
+#walk_and_run(r"../input/requests/less_random_requests/sw-schlee_3")

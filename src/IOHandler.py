@@ -124,6 +124,7 @@ def read_bus_network(network_path: str):
 
 def fill_time_windows(request: Request, split_req_list: List[SplitRequest]):
     # go through split_req_list and fill time windows (as big as possible)
+
     total_distance: float = sum(Helper.calc_distance(x.pick_up_location, x.drop_off_location) for x in split_req_list)
 
     shortest_time: int = Timer.calc_time(total_distance) + (len(split_req_list) * Global.TRANSFER_SECONDS)
@@ -131,7 +132,7 @@ def fill_time_windows(request: Request, split_req_list: List[SplitRequest]):
 
     # special case for first split, because of fixed time window for pick-up
     start_split = split_req_list[0]
-    start_split.earl_start_time = request.earl_start_time
+    start_split.earl_start_time = request.earl_start_time.add_seconds(0)
     start_split.latest_start_time = request.earl_start_time.add_seconds(Global.TIME_WINDOW_SECONDS)
 
     curr_earl_time += Global.TRANSFER_SECONDS + Timer.calc_time(
@@ -139,7 +140,7 @@ def fill_time_windows(request: Request, split_req_list: List[SplitRequest]):
 
     start_split.earl_arr_time = start_split.earl_start_time.add_seconds(curr_earl_time)
     prop_lat_arr: TimeImpl = request.latest_arr_time.sub_seconds(shortest_time - curr_earl_time)
-    if start_split.latest_arr_time is None or start_split.latest_start_time < prop_lat_arr:
+    if start_split.latest_arr_time is None or start_split.latest_arr_time < prop_lat_arr:
         start_split.latest_arr_time = prop_lat_arr
 
     assert start_split.earl_arr_time < start_split.latest_arr_time
@@ -167,6 +168,7 @@ def fill_time_windows(request: Request, split_req_list: List[SplitRequest]):
 
 
 def main(path_2_config: str, path_to_req, speed: float, unitDist: float, output_path_full):
+    print("PYTHONHASHSEED =", os.environ.get("PYTHONHASHSEED"))
     with open(path_2_config, 'r') as config_file:
         config: dict = json.load(config_file)
 
@@ -470,6 +472,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         # The first argument is the file path
         config_path = sys.argv[1]
+        print(sys.argv)
         main(config_path, sys.argv[2], float(sys.argv[3]), float(sys.argv[4]), sys.argv[5])
     else:
         print("Please provide the file path to the config file as an argument.")

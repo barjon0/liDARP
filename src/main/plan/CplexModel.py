@@ -41,10 +41,6 @@ class CplexSolver:
             model.variables.add(**variable_args[0])
             model.variables.add(**variable_args[1])
 
-        # 2 * B_e per bus / not needed can actually infer from solution
-        # for bus in self.buses:
-        #    model.variables.add(names=[f'B_b{bus.id}+', f'B_b{bus.id}-'])
-
         # x_a for every edge
         for first in self.event_graph.edge_dict:
             for second in self.event_graph.edge_dict[first][1]:
@@ -207,25 +203,6 @@ class CplexSolver:
                         rhs=[service_time - big_m + duration + self.time_const_maker.add_value(split_req, bool_first)
                              - self.time_const_maker.add_value(other_split, bool_second)]
                     )
-                    '''
-                    # constraint for enforcing time window on first pick up splits, when picked up after others
-                    if service_time == 0 and split_req.earl_start_time == split_req.parent.earl_start_time:
-                        if bool_second:
-                            diff_other = (other_split.latest_start_time - other_split.earl_start_time).get_in_minutes()
-                        else:
-                            diff_other = (other_split.latest_arr_time - other_split.earl_arr_time).get_in_minutes()
-
-                        some_m = diff_other - split_req.latest_start_time.get_in_minutes() + self.time_const_maker.add_value(other_split, bool_second)
-                        rhs = split_req.latest_start_time.get_in_minutes() + Global.TRANSFER_MINUTES + some_m - self.time_const_maker.add_value(other_split, bool_second)
-                        vars_namen = var_dict[found_tuple] + var_names[:-1]
-                        vals = [some_m]*len(var_dict[found_tuple]) + [1]
-
-                        model.linear_constraints.add(
-                            lin_expr=[cplex.SparsePair(ind=vars_namen, val=vals)],
-                            senses=["L"],
-                            rhs=[rhs]
-                        )
-                        '''
 
         for req in self.requests:
             found_tuples = set()
@@ -350,34 +327,6 @@ class CplexSolver:
 
             Global.INTEGRALITY_GAP_SECOND = int(self.model.solution.MIP.get_mip_relative_gap() * 100)
 
-        # solve one more time and minimize B*-variables
-        # add constraint for km variables
-        '''
-        obj_pairs = []
-        for first_event in self.event_graph.edge_dict.keys():
-            for second_event in self.event_graph.edge_dict[first_event][1]:
-                obj_pairs += [(f"x_{first_event.id},{second_event.id}",
-                               Helper.calc_distance(first_event.location, second_event.location))]
-        values = self.model.solution.get_values([x[0] for x in obj_pairs])
-
-        summed_value = 0
-        for i in range(len(values)):
-            summed_value += (values[i] * obj_pairs[i][1])
-
-        self.model.linear_constraints.add(
-            lin_expr=[cplex.SparsePair(ind=[x[0] for x in obj_pairs], val=[x[1] for x in obj_pairs])],
-            senses=["L"],
-            rhs=[summed_value * 1.0001]
-        )
-
-        self.model.objective.set_sense(self.model.objective.sense.minimize)
-        time_pairs = [(f"B_{x.split_id}+", 1.0) for x in self.event_graph.request_dict.keys()]
-        time_pairs += [(f"B_{x.split_id}-", 1.0) for x in self.event_graph.request_dict.keys()]
-
-        self.model.objective.set_linear(time_pairs)
-        self.model.solve()
-        '''
-
         Global.COMPUTATION_TIME_SOLVING_SECOND = round(time.time() - Global.COMPUTATION_START_TIME, 4)
         print(f"Solved model after {Global.COMPUTATION_TIME_SOLVING_SECOND} seconds")
         Global.COMPUTATION_START_TIME = time.time()
@@ -399,6 +348,7 @@ class CplexSolver:
         all_plans: List[Route] = []
 
         for line in line_bus_dict.keys():
+            prev_visited = {}   # stores events that are visited multiple times (and amount)
             idle_event: IdleEvent = next(
                 iter(x for x in self.event_graph.edge_dict.keys() if isinstance(x, IdleEvent) and x.line == line))
             sub_names = [f"x_{idle_event.id},{x.id}" for x in self.event_graph.edge_dict[idle_event][1]]
@@ -420,15 +370,11 @@ class CplexSolver:
                     bus_plan.stop_list.append(
                         RouteStop(idle_event.location, bus.line.start_time, bus.line.end_time, bus))
                 else:
-                    next_event = self.event_graph.edge_dict[idle_event][1][j]
-                    #arc_names.append(sub_names[j])
-                    time_var = round(self.model.solution.get_values(f"B_{next_event.first.split_id}+"))
-
-                    duration = Timer.calc_time(Helper.calc_distance(idle_event.location, next_event.location))
                     curr_route_stop = RouteStop(idle_event.location, bus.line.start_time,
-                                                Timer.create_time_object(time_var - Global.TRANSFER_SECONDS - duration
-                                                + self.time_const_maker.add_value(next_event.first, True)), bus)
+                                                bus.line.start_time, bus)
                     bus_plan.stop_list.append(curr_route_stop)
+
+                    next_event = get_next_event(idle_event, self.event_graph.edge_dict, self.model.solution, prev_visited)
 
                     while next_event is not idle_event:
                         # check selected option for request -> if event fits with option:
@@ -491,12 +437,7 @@ class CplexSolver:
                         else:
                             print(f"Unnecessary event removed: {next_event}")
 
-                        sub_names = [f"x_{next_event.id},{x.id}" for x in self.event_graph.edge_dict[next_event][1]]
-                        edge_vals = self.model.solution.get_values(sub_names)
-                        next_round_edge_vals = [round(x) for x in edge_vals]
-                        next_event_idx = next_round_edge_vals.index(1)
-                        next_event = self.event_graph.edge_dict[next_event][1][next_event_idx]
-                        #arc_names.append(sub_names[next_event_idx])
+                        next_event = get_next_event(next_event, self.event_graph.edge_dict, self.model.solution, prev_visited)
 
                     # handle final idle_event stop
                     if curr_route_stop.stop == bus.line.depot:
@@ -506,24 +447,28 @@ class CplexSolver:
                         bus_plan.stop_list.append(
                             RouteStop(next_event.location, curr_route_stop.depart_time.add_seconds(duration),
                                       bus.line.end_time, bus))
+                    if len(bus_plan.stop_list) > 1:
+                        duration = Timer.create_time_object(Timer.calc_time(Helper.calc_distance(bus_plan.stop_list[0].stop, bus_plan.stop_list[1].stop)))
+                        bus_plan.stop_list[0].depart_time = (bus_plan.stop_list[1].arriv_time - duration)
                 all_plans.append(bus_plan)
 
-        '''
-        all_names = []
-        km_all = []
-        for first in self.event_graph.edge_dict.keys():
-            for second in self.event_graph.edge_dict[first][1]:
-                all_names.append(f"x_{first.id},{second.id}")
-                km_all.append(Helper.calc_distance(first.location, second.location))
-        vals = [round(x) for x in self.model.solution.get_values(all_names)]
-        filtered = [item for item, m in zip(all_names, vals) if m == 1]
-        filtered_kms = [item for item, u in zip(km_all, vals) if u == 1]
-        print(sum(filtered_kms))
-        print(self.model.solution.get_objective_value())
-
-        intersect = set(filtered) - set(arc_names)
-        if len(intersect) > 0:
-            print("what is happening")
-            '''
-
         return all_plans
+
+def get_next_event(prev_event, edge_dict, solution, prev_visited: dict):
+    sub_names = [f"x_{prev_event.id},{x.id}" for x in edge_dict[prev_event][1]]
+    edge_vals = solution.get_values(sub_names)
+    next_round_edge_vals = [round(x) for x in edge_vals]
+    indices = [i for i, val in enumerate(next_round_edge_vals) if val == 1]
+
+    number_visited = 0
+    if len(indices) > 1:
+        if prev_event in prev_visited:
+            number_visited = prev_visited[prev_event]
+            prev_visited[prev_event] += 1
+        else:
+            prev_visited[prev_event] = 1
+
+    next_event_idx = indices[number_visited]
+    next_event = edge_dict[prev_event][1][next_event_idx]
+
+    return next_event

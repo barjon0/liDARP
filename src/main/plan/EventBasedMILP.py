@@ -132,6 +132,13 @@ def sweep_line_time(splits_in_dir: Set[SplitRequest]):
 
     return output_dict
 
+def check_if_in_next(next_permut, r_id, line, pick_up, drop_off):
+    rs = [x for x in next_permut if x.id == r_id]
+    if len(rs) > 0:
+        r: SplitRequest = rs[0]
+        if r.line.id == line and pick_up == r.pick_up_location.id and r.drop_off_location.id == drop_off:
+            return True
+    return False
 
 class EventBasedMILP(Planner):
     def __init__(self, bus_list: List[Bus], network_graph: LineGraph):
@@ -141,13 +148,10 @@ class EventBasedMILP(Planner):
     # checks all permutations recursively, only one request per id, always check if feasible, if not stop
     def get_permutations(self, event_user: SplitRequest, cand_list: List[SplitRequest], curr_permut: Set[SplitRequest],
                          index: int, event_type: bool) -> Set[Event]:
-
         return_set: Set[Event] = set()
         # check for next candidate to be distinct from previous ones
         id_set: Set[int] = {x.id for x in curr_permut}
 
-        if event_user.id == 3 and (13 in [x.id for x in cand_list]):
-            print("hi")
         # check if candidates left
         while len(cand_list) > index:
             # if no one left stop
@@ -160,6 +164,7 @@ class EventBasedMILP(Planner):
                         next_permut) + event_user.number_of_passengers) <= event_user.line.capacity:
                     earl_time, lat_time = Helper.get_event_window(event_user, next_permut, event_type)
                     if earl_time is not None and lat_time is not None:
+                        #print("Did Work")
                         event: Event
                         if event_type:
                             event = PickUpEvent(event_user, next_permut, earl_time, lat_time)
@@ -235,22 +240,15 @@ class EventBasedMILP(Planner):
                 local_cand_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = \
                     sweep_line_local(users_here, line, direction)
 
-                # number_of_candidate_pairs_local = sum(len(local_cand_dict[x][0]) + len(local_cand_dict[x][1]) for x in local_cand_dict.keys())
-                # print(f"number of local candidate pairs for line {line.id} and direction {direction}: {number_of_candidate_pairs_local}")
-
                 time_cand_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = sweep_line_time(
                     line_dir_dict[line][direction])
 
-                # number_of_candidate_pairs_time = sum(len(time_cand_dict[x][0]) + len(time_cand_dict[x][1]) for x in time_cand_dict.keys())
-                # print(f"number of time candidate pairs for line {line.id} and direction {direction}: {number_of_candidate_pairs_time}")
-
                 agg_cand_dict: Dict[SplitRequest, Tuple[Set[SplitRequest], Set[SplitRequest]]] = {}
+                sum_candidates = 0
                 for split_req in local_cand_dict.keys():
                     agg_cand_dict[split_req] = (local_cand_dict[split_req][0] & time_cand_dict[split_req][0],
                                                 local_cand_dict[split_req][1] & time_cand_dict[split_req][1])
-
-                # number_of_candidate_pairs = sum(len(agg_cand_dict[x][0]) + len(agg_cand_dict[x][1]) for x in agg_cand_dict.keys())
-                # print(f"number of candidate pairs for line {line.id} and direction {direction}: {number_of_candidate_pairs}")
+                    sum_candidates += len(agg_cand_dict[split_req][0]) + len(agg_cand_dict[split_req][0])
 
                 # make permutations (check if some split_requests already started)
                 # user_sorted: List[SplitRequest] = sorted(agg_cand_dict.keys(), key=lambda user: user.split_id)
@@ -260,16 +258,16 @@ class EventBasedMILP(Planner):
                         PickUpEvent(event_user, set(), event_user.earl_start_time, event_user.latest_start_time)}
 
                     hold = self.get_permutations(event_user, list(agg_cand_dict[event_user][0]), set(), 0, True)
-                    # if len(hold) > 0:
-                    #    print(f"for split {event_user.split_id} of user {event_user.id} there were {len(hold)} pick-up combis found")
                     permutations |= hold
+
+                    if event_user.id == 11 and line.id == 8134 and event_user.pick_up_location.id == 18:
+                        print(f"For {event_user.split_id} there are {hold} pick-up events")
 
                     permutations |= {
                         DropOffEvent(event_user, set(), event_user.earl_arr_time, event_user.latest_arr_time)}
                     hold = self.get_permutations(event_user, list(agg_cand_dict[event_user][1]), set(), 0, False)
-                    # if len(hold) > 0:
-                    #    print(f"for split {event_user.split_id} of user {event_user.id} there were {len(hold)} drop-off combis found")
                     permutations |= hold
+
 
             self.event_graph.add_events(permutations)
             # unnecessary all nodes should be valid by construction, could use for debugging though
@@ -295,6 +293,5 @@ class EventBasedMILP(Planner):
 
         # solve model
         cplex_model.solve_model()
-
         # convert to route solution
         self.curr_routes = cplex_model.convert_to_plan()
